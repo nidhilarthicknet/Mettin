@@ -186,7 +186,7 @@ function infuseSme(id,quantity){
  if(n<1||n>owned){status('devStatus','Choose a quantity between 1 and '+owned+' purchased unit(s).','error');return;}
  const marker='SME INFUSED: '+item.id;
  if($('devCode').value.includes(marker)){status('devStatus',item.id+' is already referenced in this draft. Remove the old SME comment before infusing it again.','error');return;}
- const snippet='\n\n<!-- SME INFUSED: '+item.id+' / '+item.name+' -->\\n<!-- Capability: '+item.func+' -->\\n<!-- Quantity infused: '+n+' (verified purchased quantity: '+owned+') -->\\n';
+ const snippet='\n\n<!-- SME INFUSED: '+item.id+' / '+item.name+' -->\n<!-- Capability: '+item.func+' -->\n<!-- Quantity infused: '+n+' (verified purchased quantity: '+owned+') -->\n';
  $('devCode').value+=snippet;
  status('devStatus',item.id+' × '+n+' infused into the project draft. Save Cloud to keep it.','success');
  showPage('develop');
