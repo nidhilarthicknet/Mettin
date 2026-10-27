@@ -294,7 +294,7 @@ boot().catch(e=>{console.error('Mettin initialization:',e);gateMessage(e.message
   };
   function navTarget(node){
     if(!(node instanceof Element))return null;
-    return node.closest('button[data-page],button[data-nav],nav button,a[href^="#"],button[onclick*="tryShow("],button[onclick*="openApp("]');
+    return node.closest('button[data-page],button[data-nav],nav button,a[href^="#"]');
   }
   function paymentTarget(node){
     if(!(node instanceof Element))return null;
