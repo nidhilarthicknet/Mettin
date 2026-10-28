@@ -163,7 +163,7 @@ function activeTier(){return profile&&profile.subscription_until&&new Date(profi
 async function refreshOverview(){if(!profile)return;const tier=activeTier();$('homeWallet').textContent=moneyJp(profile.jp_balance);$('homeUsername').textContent=profile.username||'—';$('homeRole').textContent=(profile.display_name||'Metxon profile')+' · '+(profile.role||'member');$('homeTier').textContent=tier;$('homeExpiry').textContent=tier==='None'?'No active subscription':'Until '+fmtDate(profile.subscription_until);const q=await sb.from('metxon_app_installations').select('id',{count:'exact',head:true}).eq('user_id',profile.id);$('homeApps').textContent=q.error?'—':String(q.count||0);await refreshMetxonHome();}
 
 function mhEmpty(text){return '<div class="mh-empty">'+esc(text)+'</div>';}
-async function markMetxonNotificationsRead(){if(!profile)return;const r=await sb.from('metxon_app_notifications').update({is_read:true}).eq('user_id',profile.id).eq('is_read',false);if(r.error){$('mhNoticeTitle').textContent='Notifications could not be marked as read.';$('mhNoticeText').textContent=r.error.message;return;}await refreshMetxonHome();}
+async function markMetxonNotificationsRead(){if(!profile)return;const [r,m]=await Promise.all([sb.from('metxon_app_notifications').update({is_read:true}).eq('user_id',profile.id).eq('is_read',false),sb.from('metmail_messages').update({is_read:true}).eq('owner_id',profile.id).eq('folder','Inbox').eq('is_read',false)]);if(r.error||m.error){$('mhNoticeTitle').textContent='Some notifications could not be marked as read.';$('mhNoticeText').textContent=(r.error||m.error).message;return;}await refreshMetxonHome();}
 function mhItem(title,message,when,tag){return '<div class="mh-feed-item"><small>'+esc(tag||'Update')+' · '+esc(when||'')+'</small><strong>'+esc(title||'Update')+'</strong><p>'+esc(message||'No extra details provided.')+'</p></div>';}
 async function refreshMetxonHome(){
  if(!profile)return;
@@ -178,7 +178,7 @@ async function refreshMetxonHome(){
  const notifs=notifsRes.error?[]:(notifsRes.data||[]);
  const mail=mailRes.error?[]:(mailRes.data||[]);
  const usefulMail=mail.filter(m=>!/(verification code|password reset|one-time|\botp\b|security alert)/i.test((m.subject||'')+' '+(m.body||''))&&/(order|deliver|shipping|metcart|care|ticket|reply|stock|sell|metcount|molecule)/i.test((m.subject||'')+' '+(m.body||'')));
- const unread=notifs.filter(n=>!n.is_read).length;
+ const unread=notifs.filter(n=>!n.is_read).length+usefulMail.filter(m=>!m.is_read).length;
  $('mhUnreadCount').textContent=String(unread);
  $('mhNoticeTitle').textContent=unread?('You have '+unread+' new notification'+(unread===1?'':'s')+'. Check Metxon Home.'):'You are up to date — check again whenever you expect an update.';
  $('mhNoticeText').textContent=unread?'Recent updates from your connected Metxon services are listed below. Open the source website for details or to respond.':'No unread notifications were found in your account notification feed.';
