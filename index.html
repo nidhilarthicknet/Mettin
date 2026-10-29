@@ -290,7 +290,7 @@ function buildAppDocument(source,language){
  const code=String(source||'');
  if(language==='html'){
   const bridge='<script>window.Mettin=window.Mettin||{};window.Mettin.openMetAil=function(){window.open("https://nidhilarthicknet.github.io/metxon/","_blank","noopener")};window.Mettin.isMetailId=function(value){return /^[a-z0-9._+-]+@metail\\.com$/i.test(String(value||"").trim())};<\/script>';
-  return /<\\/body>/i.test(code)?code.replace(/<\\/body>/i,bridge+'</body>'):code+bridge;
+  return /<\/body>/i.test(code)?code.replace(/<\/body>/i,bridge+'</body>'):code+bridge;
  }
  if(language==='javascript'){
   const safeScript=code.replace(/<\/script/gi,'<\\/script');
