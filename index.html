@@ -429,6 +429,7 @@ async function openMettinMailApp(accountId,folder){
         p_subject:subject,p_body:body,p_attachment_path:path
       });
       if(r.error)throw r.error;
+      path=null;
       $('maRecipient').value='';$('maSubject').value='';$('maBody').value='';$('maAttachment').value='';
       toast(file?'Met-Ail message and photo sent.':'Met-Ail message sent.','success');
       await openMettinMailApp(chosen.id,'Sent');
@@ -436,7 +437,7 @@ async function openMettinMailApp(accountId,folder){
       if(path)await sb.storage.from('mettin-app-attachments').remove([path]);
       status('maSendStatus',e.message||'Send failed.','error');
     }finally{btn.disabled=false;}
-  };;
+  };
   const messages=await sb.from('metmail_messages').select('id,folder,sender,recipient,subject,body,attachment_path,is_read,created_at').eq('owner_id',profile.id).eq('account_email',mailAddress).eq('folder',currentFolder).order('created_at',{ascending:false}).limit(60);
   const mailRows=messages.data||[],mailPhotos=new Map();
   await Promise.all(mailRows.filter(x=>x.attachment_path).map(async x=>{
@@ -511,13 +512,14 @@ async function openMettinNaApp(){
       if(file)path=await uploadMettinAttachment(file,'metna');
       const r=await sb.from('metna_posts').insert({user_id:profile.id,username:me.username,body,image_path:path});
       if(r.error)throw r.error;
+      path=null;
       status('naPostStatus','Post published'+(file?' with picture.':'.'),'success');
-      await openMettinNaApp();
+      try{await openMettinNaApp();}catch(refreshError){status('naPostStatus','Post saved, but the feed could not refresh. Reopen Met-Na to see it.','error');}
     }catch(e){
       if(path)await sb.storage.from('mettin-app-attachments').remove([path]);
       status('naPostStatus',e.message||'Could not publish the post.','error');
     }finally{btn.disabled=false;}
-  };;
+  };
   $('launchContent').querySelectorAll('[data-na-like]').forEach(b=>b.onclick=async()=>{const id=b.dataset.naLike,liked=likes.some(y=>y.post_id===id&&y.user_id===profile.id);const r=liked?await sb.from('metna_likes').delete().eq('post_id',id).eq('user_id',profile.id):await sb.from('metna_likes').insert({post_id:id,user_id:profile.id});if(r.error)return toast(r.error.message,'error');await openMettinNaApp();});
   $('launchContent').querySelectorAll('[data-na-follow]').forEach(b=>b.onclick=async()=>{const id=b.dataset.naFollow,isFollowing=follows.includes(id);const r=isFollowing?await sb.from('metna_follows').delete().eq('follower_id',profile.id).eq('followed_id',id):await sb.from('metna_follows').insert({follower_id:profile.id,followed_id:id});if(r.error)return toast(r.error.message,'error');await openMettinNaApp();});
   $('launchContent').querySelectorAll('[data-na-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this post?'))return;const r=await sb.from('metna_posts').delete().eq('id',b.dataset.naDelete).eq('user_id',profile.id);if(r.error)return toast(r.error.message,'error');await openMettinNaApp();});
@@ -590,6 +592,7 @@ async function sendMetAlkMessage(){
     if(file)path=await uploadMettinAttachment(file,'metalk');
     const r=await sb.from('metalk_messages').insert({sender_id:profile.id,recipient_id:q.data.id,message:m||'📷 Photo',attachment_path:path});
     if(r.error)throw r.error;
+    path=null;
     $('alkMessage').value='';$('alkPhoto').value='';
     status('alkStatus',file?'Message and photo sent.':'Message sent.','success');
     await loadMetAlkHistory();
