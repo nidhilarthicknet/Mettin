@@ -368,6 +368,25 @@ function renderLocalApp(a,body,description){
   $('appLaunchPanel').classList.remove('hidden');
   setAppLaunchFullscreen(true);
 }
+function validateMettinAttachment(file){
+  if(!file)return;
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Choose a JPG, PNG or WebP image.');
+  if(file.size>5*1024*1024)throw new Error('Image must be 5 MB or smaller.');
+}
+async function uploadMettinAttachment(file,appFolder){
+  if(!file)return null;
+  validateMettinAttachment(file);
+  const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
+  const path=profile.id+'/'+appFolder+'/'+crypto.randomUUID()+'.'+ext;
+  const up=await sb.storage.from('mettin-app-attachments').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});
+  if(up.error)throw up.error;
+  return path;
+}
+async function getMettinAttachmentUrl(path){
+  if(!path)return '';
+  const r=await sb.storage.from('mettin-app-attachments').createSignedUrl(path,3600);
+  return !r.error&&r.data&&r.data.signedUrl?r.data.signedUrl:'';
+}
 async function openMettinMailApp(accountId,folder){
   if(!profile)return;
   const q=await sb.from('metail_accounts').select('id,user_id,username,display_name,created_at').eq('user_id',profile.id).order('created_at',{ascending:true});
@@ -392,13 +411,41 @@ async function openMettinMailApp(accountId,folder){
   }
   const composing=folder==='Compose';const currentFolder=composing?'Inbox':(folder||'Inbox');
   const a=APPS.find(x=>x.id==='met_ail');
-  renderLocalApp(a,'<div class="card"><div class="split"><div><h2>Met-Ail</h2><p>Internal mail · '+esc(mailAddress)+'</p></div><span class="pill green">Connected</span></div><div class="field"><label>Mailbox</label><select id="maAccount">'+accounts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===chosen.id?'selected':'')+'>'+esc(x.username)+'@metail.com</option>').join('')+'</select></div><div class="row" id="maFolders"><button class="btn '+(currentFolder==='Inbox'?'primary':'')+'" data-folder="Inbox">Inbox</button><button class="btn '+(currentFolder==='Sent'?'primary':'')+'" data-folder="Sent">Sent</button><button class="btn '+(currentFolder==='Drafts'?'primary':'')+'" data-folder="Drafts">Drafts</button><button class="btn" id="maComposeToggle">Compose</button></div></div><div id="maComposeBox" class="card '+(composing?'':'hidden')+'" style="margin-top:12px"><h3>New message</h3><div class="field"><label>Recipient username or @metail.com address</label><input id="maRecipient" placeholder="username@metail.com"></div><div class="field"><label>Subject</label><input id="maSubject" maxlength="160"></div><div class="field"><label>Message</label><textarea id="maBody" maxlength="12000" rows="5"></textarea></div><button class="btn primary" id="maSend">Send message</button><div id="maSendStatus" class="status"></div></div><div id="maMessages" class="list" style="margin-top:12px">Loading mailbox…</div>');
+  renderLocalApp(a,'<div class="card"><div class="split"><div><h2>Met-Ail</h2><p>Internal mail · '+esc(mailAddress)+'</p></div><span class="pill green">Connected</span></div><div class="field"><label>Mailbox</label><select id="maAccount">'+accounts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===chosen.id?'selected':'')+'>'+esc(x.username)+'@metail.com</option>').join('')+'</select></div><div class="row" id="maFolders"><button class="btn '+(currentFolder==='Inbox'?'primary':'')+'" data-folder="Inbox">Inbox</button><button class="btn '+(currentFolder==='Sent'?'primary':'')+'" data-folder="Sent">Sent</button><button class="btn '+(currentFolder==='Drafts'?'primary':'')+'" data-folder="Drafts">Drafts</button><button class="btn" id="maComposeToggle">Compose</button></div></div><div id="maComposeBox" class="card '+(composing?'':'hidden')+'" style="margin-top:12px"><h3>New message</h3><div class="field"><label>Recipient username or @metail.com address</label><input id="maRecipient" placeholder="username@metail.com"></div><div class="field"><label>Subject</label><input id="maSubject" maxlength="160"></div><div class="field"><label>Message</label><textarea id="maBody" maxlength="12000" rows="5"></textarea></div><div class="field"><label for="maAttachment">Attach a photo (optional · JPG, PNG or WebP · up to 5 MB)</label><input id="maAttachment" type="file" accept="image/jpeg,image/png,image/webp"></div><button class="btn primary" id="maSend">Send message</button><div id="maSendStatus" class="status"></div></div><div id="maMessages" class="list" style="margin-top:12px">Loading mailbox…</div>');
   $('maAccount').onchange=()=>openMettinMailApp($('maAccount').value,'Inbox');
   $('maFolders').querySelectorAll('[data-folder]').forEach(b=>b.onclick=()=>openMettinMailApp(chosen.id,b.dataset.folder));
   $('maComposeToggle').onclick=()=>{$('maComposeBox').classList.toggle('hidden');};if(window.__mettinMailPrefillTo&&/^[a-z0-9._+-]+@metail[.]com$/i.test(window.__mettinMailPrefillTo)){$('maRecipient').value=window.__mettinMailPrefillTo;$('maComposeBox').classList.remove('hidden');window.__mettinMailPrefillTo='';}
-  $('maSend').onclick=async()=>{let recipient=$('maRecipient').value.trim().toLowerCase(),subject=$('maSubject').value.trim(),body=$('maBody').value.trim();recipient=recipient.replace(/@metail\.com$/,'');if(!recipient||!subject||!body)return status('maSendStatus','Enter recipient, subject and message.','error');try{const r=await sb.rpc('metxon_send_metail_message',{p_sender_username:chosen.username,p_recipient_username:recipient,p_subject:subject,p_body:body});if(r.error)throw r.error;$('maRecipient').value='';$('maSubject').value='';$('maBody').value='';status('maSendStatus','Message sent.','success');await openMettinMailApp(chosen.id,'Sent');}catch(e){status('maSendStatus',e.message||'Send failed.','error');}};
-  const messages=await sb.from('metmail_messages').select('id,folder,sender,recipient,subject,body,is_read,created_at').eq('owner_id',profile.id).eq('account_email',mailAddress).eq('folder',currentFolder).order('created_at',{ascending:false}).limit(60);
-  $('maMessages').innerHTML=messages.error?'<div class="card">Messages unavailable: '+esc(messages.error.message)+'</div>':(messages.data||[]).map(m=>'<article class="card"><div class="split"><strong>'+esc(m.subject||'(No subject)')+'</strong><small>'+esc(fmtDate(m.created_at))+'</small></div><p>From: '+esc(m.sender||'—')+' · To: '+esc(m.recipient||'—')+'</p><div class="message-text">'+esc(m.body||'')+'</div></article>').join('')||'<div class="empty">No '+esc(currentFolder.toLowerCase())+' messages yet.</div>';
+  $('maSend').onclick=async()=>{
+    const recipient=$('maRecipient').value.trim().toLowerCase().replace(/@metail\.com$/,'');
+    const subject=$('maSubject').value.trim(),body=$('maBody').value.trim(),file=$('maAttachment')?.files?.[0]||null;
+    const btn=$('maSend');let path=null;
+    if(!recipient||!subject||!body)return status('maSendStatus','Enter recipient, subject and message.','error');
+    try{validateMettinAttachment(file);}catch(e){return status('maSendStatus',e.message,'error');}
+    btn.disabled=true;status('maSendStatus','Sending message…','');
+    try{
+      if(file)path=await uploadMettinAttachment(file,'metail');
+      const r=await sb.rpc('metxon_send_metail_message_with_attachment',{
+        p_sender_username:chosen.username,p_recipient_username:recipient,
+        p_subject:subject,p_body:body,p_attachment_path:path
+      });
+      if(r.error)throw r.error;
+      $('maRecipient').value='';$('maSubject').value='';$('maBody').value='';$('maAttachment').value='';
+      toast(file?'Met-Ail message and photo sent.':'Met-Ail message sent.','success');
+      await openMettinMailApp(chosen.id,'Sent');
+    }catch(e){
+      if(path)await sb.storage.from('mettin-app-attachments').remove([path]);
+      status('maSendStatus',e.message||'Send failed.','error');
+    }finally{btn.disabled=false;}
+  };;
+  const messages=await sb.from('metmail_messages').select('id,folder,sender,recipient,subject,body,attachment_path,is_read,created_at').eq('owner_id',profile.id).eq('account_email',mailAddress).eq('folder',currentFolder).order('created_at',{ascending:false}).limit(60);
+  const mailRows=messages.data||[],mailPhotos=new Map();
+  await Promise.all(mailRows.filter(x=>x.attachment_path).map(async x=>{
+    const url=await getMettinAttachmentUrl(x.attachment_path);if(url)mailPhotos.set(x.id,url);
+  }));
+  $('maMessages').innerHTML=messages.error?'<div class="card">Messages unavailable: '+esc(messages.error.message)+'</div>':mailRows.map(m=>{
+    const photo=mailPhotos.get(m.id);
+    return '<article class="card"><div class="split"><strong>'+esc(m.subject||'(No subject)')+'</strong><small>'+esc(fmtDate(m.created_at))+'</small></div><p>From: '+esc(m.sender||'—')+' · To: '+esc(m.recipient||'—')+'</p><div class="message-text">'+esc(m.body||'')+'</div>'+(photo?'<div style="margin-top:10px"><a href="'+esc(photo)+'" target="_blank" rel="noopener"><img src="'+esc(photo)+'" alt="Met-Ail attachment" style="max-width:220px;max-height:180px;object-fit:contain;border-radius:10px"></a></div>':'')+'</article>';
+  }).join('')||'<div class="empty">No '+esc(currentFolder.toLowerCase())+' messages yet.</div>';
 }
 async function openMettinCloudApp(){
   if(!profile)return;
@@ -440,15 +487,37 @@ async function openMettinNaApp(){
     return;
   }
   const me=q.data;
-  const posts=await sb.from('metna_posts').select('id,user_id,username,body,created_at').order('created_at',{ascending:false}).limit(80);
+  const posts=await sb.from('metna_posts').select('id,user_id,username,body,image_path,created_at').order('created_at',{ascending:false}).limit(80);
   const ids=(posts.data||[]).map(x=>x.id);
   let likes=[],follows=[];
   if(ids.length){const l=await sb.from('metna_likes').select('post_id,user_id').in('post_id',ids);likes=l.data||[];}
   const f=await sb.from('metna_follows').select('followed_id').eq('follower_id',profile.id);follows=(f.data||[]).map(x=>x.followed_id);
   const aDesc='Metxon Arena · @'+me.username+' · '+(me.bio||'No bio added');
-  const postHTML=posts.error?'<div class="empty">Feed unavailable: '+esc(posts.error.message)+'</div>':(posts.data||[]).map(x=>'<article class="card" style="margin-top:10px"><div class="split"><strong>@'+esc(x.username)+'</strong><small>'+esc(fmtDate(x.created_at))+'</small></div><p style="white-space:pre-wrap">'+esc(x.body)+'</p><div class="row">'+(x.user_id!==profile.id?'<button class="btn" data-na-follow="'+esc(x.user_id)+'">'+(follows.includes(x.user_id)?'Unfollow':'Follow')+'</button>':'')+'<button class="btn" data-na-like="'+esc(x.id)+'">'+(likes.some(y=>y.post_id===x.id&&y.user_id===profile.id)?'Unlike':'Like')+' ('+likes.filter(y=>y.post_id===x.id).length+')</button>'+(x.user_id===profile.id?'<button class="btn danger" data-na-delete="'+esc(x.id)+'">Delete</button>':'')+'</div></article>').join('')||'<div class="empty">No posts yet. Create the first update.</div>';
-  renderLocalApp(a,'<div class="card"><div class="split"><div><h2>Met-Na · Metxon Arena</h2><p>'+esc(aDesc)+'</p></div><span class="pill green">Connected</span></div><textarea id="naNewPost" maxlength="1000" rows="3" placeholder="Share an update…" style="width:100%;margin:8px 0"></textarea><button class="btn primary" id="naPost">Publish post</button><div id="naPostStatus" class="status"></div></div><div id="naFeed">'+postHTML+'</div>');
-  $('naPost').onclick=async()=>{const body=$('naNewPost').value.trim();if(!body)return status('naPostStatus','Write something before posting.','error');const r=await sb.from('metna_posts').insert({user_id:profile.id,username:me.username,body});if(r.error)return status('naPostStatus',r.error.message,'error');await openMettinNaApp();};
+  const postRows=posts.data||[],postPhotos=new Map();
+  await Promise.all(postRows.filter(x=>x.image_path).map(async x=>{
+    const url=await getMettinAttachmentUrl(x.image_path);if(url)postPhotos.set(x.id,url);
+  }));
+  const postHTML=posts.error?'<div class="empty">Feed unavailable: '+esc(posts.error.message)+'</div>':postRows.map(x=>{
+    const photo=postPhotos.get(x.id);
+    return '<article class="card" style="margin-top:10px"><div class="split"><strong>@'+esc(x.username)+'</strong><small>'+esc(fmtDate(x.created_at))+'</small></div><p style="white-space:pre-wrap">'+esc(x.body)+'</p>'+(photo?'<div style="margin:8px 0"><a href="'+esc(photo)+'" target="_blank" rel="noopener"><img src="'+esc(photo)+'" alt="Met-Na post image" style="max-width:100%;max-height:300px;object-fit:contain;border-radius:12px"></a></div>':'')+'<div class="row">'+(x.user_id!==profile.id?'<button class="btn" data-na-follow="'+esc(x.user_id)+'">'+(follows.includes(x.user_id)?'Unfollow':'Follow')+'</button>':'')+'<button class="btn" data-na-like="'+esc(x.id)+'">'+(likes.some(y=>y.post_id===x.id&&y.user_id===profile.id)?'Unlike':'Like')+' ('+likes.filter(y=>y.post_id===x.id).length+')</button>'+(x.user_id===profile.id?'<button class="btn danger" data-na-delete="'+esc(x.id)+'">Delete</button>':'')+'</div></article>';
+  }).join('')||'<div class="empty">No posts yet. Create the first update.</div>';
+  renderLocalApp(a,'<div class="card"><div class="split"><div><h2>Met-Na · Metxon Arena</h2><p>'+esc(aDesc)+'</p></div><span class="pill green">Connected</span></div><textarea id="naNewPost" maxlength="1000" rows="3" placeholder="Share an update…" style="width:100%;margin:8px 0"></textarea><div class="field"><label for="naPhoto">Add a picture (optional · JPG, PNG or WebP · up to 5 MB)</label><input id="naPhoto" type="file" accept="image/jpeg,image/png,image/webp"></div><button class="btn primary" id="naPost">Publish post</button><div id="naPostStatus" class="status"></div></div><div id="naFeed">'+postHTML+'</div>');
+  $('naPost').onclick=async()=>{
+    const body=$('naNewPost').value.trim(),file=$('naPhoto')?.files?.[0]||null,btn=$('naPost');let path=null;
+    if(!body&&!file)return status('naPostStatus','Write an update or attach a photo.','error');
+    try{validateMettinAttachment(file);}catch(e){return status('naPostStatus',e.message,'error');}
+    btn.disabled=true;status('naPostStatus','Publishing your post…','');
+    try{
+      if(file)path=await uploadMettinAttachment(file,'metna');
+      const r=await sb.from('metna_posts').insert({user_id:profile.id,username:me.username,body,image_path:path});
+      if(r.error)throw r.error;
+      status('naPostStatus','Post published'+(file?' with picture.':'.'),'success');
+      await openMettinNaApp();
+    }catch(e){
+      if(path)await sb.storage.from('mettin-app-attachments').remove([path]);
+      status('naPostStatus',e.message||'Could not publish the post.','error');
+    }finally{btn.disabled=false;}
+  };;
   $('launchContent').querySelectorAll('[data-na-like]').forEach(b=>b.onclick=async()=>{const id=b.dataset.naLike,liked=likes.some(y=>y.post_id===id&&y.user_id===profile.id);const r=liked?await sb.from('metna_likes').delete().eq('post_id',id).eq('user_id',profile.id):await sb.from('metna_likes').insert({post_id:id,user_id:profile.id});if(r.error)return toast(r.error.message,'error');await openMettinNaApp();});
   $('launchContent').querySelectorAll('[data-na-follow]').forEach(b=>b.onclick=async()=>{const id=b.dataset.naFollow,isFollowing=follows.includes(id);const r=isFollowing?await sb.from('metna_follows').delete().eq('follower_id',profile.id).eq('followed_id',id):await sb.from('metna_follows').insert({follower_id:profile.id,followed_id:id});if(r.error)return toast(r.error.message,'error');await openMettinNaApp();});
   $('launchContent').querySelectorAll('[data-na-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this post?'))return;const r=await sb.from('metna_posts').delete().eq('id',b.dataset.naDelete).eq('user_id',profile.id);if(r.error)return toast(r.error.message,'error');await openMettinNaApp();});
@@ -502,15 +571,43 @@ function launchApp(id){
     return renderLocalApp(a,body);
   }
   if(id==='met_alk'){
-    const body='<div class="card"><h2>Met-Alk</h2><p>Send an internal message to another Metxon username.</p><div class="field"><label>Recipient username</label><input id="alkRecipient"></div><div class="field"><label>Message</label><textarea id="alkMessage" maxlength="4000"></textarea></div><button class="btn primary" onclick="sendMetAlkMessage()">Send message</button><div id="alkStatus" class="status"></div><div id="alkHistory" class="list"></div></div>';
+    const body='<div class="card"><h2>Met-Alk</h2><p>Send an internal message to another Metxon username.</p><div class="field"><label>Recipient username</label><input id="alkRecipient"></div><div class="field"><label>Message</label><textarea id="alkMessage" maxlength="4000"></textarea></div><div class="field"><label for="alkPhoto">Attach a photo (optional · JPG, PNG or WebP · up to 5 MB)</label><input id="alkPhoto" type="file" accept="image/jpeg,image/png,image/webp"></div><button class="btn primary" onclick="sendMetAlkMessage()">Send message</button><div id="alkStatus" class="status" aria-live="polite"></div><div id="alkHistory" class="list"></div></div>';
     renderLocalApp(a,body);loadMetAlkHistory();return;
   }
   return renderLocalApp(a,'<div class="card"><h2>'+esc(a.name)+'</h2><p>'+esc(a.desc)+'</p><p>This app is running inside Mettin; no redirect to the Metxon corporate homepage is used.</p></div>');
 }
 
 async function runNebulaAssistant(id){const question=$('launchQuestion').value.trim();if(!question)return;$('launchAnswer').textContent='Asking the Metxon AI service…';try{const r=await sb.functions.invoke('metxon-ai',{body:{mode:id==='cule_in'?'cule':'nebula',question:question,context:[{name:'Metxon app catalog',apps:APPS.map(a=>({name:a.name,description:a.desc,price_inr:a.price}))}]}});if(r.error)throw r.error;if(!r.data||r.data.error)throw new Error(r.data&&r.data.error?r.data.error:'No AI answer.');$('launchAnswer').textContent=r.data.answer||r.data.text||r.data.response||JSON.stringify(r.data,null,2);}catch(e){$('launchAnswer').textContent='AI service unavailable: '+(e.message||'Unknown error');}}
-async function sendMetAlkMessage(){const u=$('alkRecipient').value.trim().toLowerCase(),m=$('alkMessage').value.trim();if(!u||!m)return status('alkStatus','Enter a recipient and message.','error');try{const q=await sb.from('profiles').select('id,username').ilike('username',u).maybeSingle();if(q.error)throw q.error;if(!q.data)throw new Error('Recipient not found.');const r=await sb.from('metalk_messages').insert({sender_id:profile.id,recipient_id:q.data.id,message:m});if(r.error)throw r.error;$('alkMessage').value='';status('alkStatus','Message sent.','success');await loadMetAlkHistory();}catch(e){status('alkStatus',e.message||'Message send failed.','error');}}
-async function loadMetAlkHistory(){const r=await sb.from('metalk_messages').select('sender_id,recipient_id,message,created_at').or('sender_id.eq.'+profile.id+',recipient_id.eq.'+profile.id).order('created_at',{ascending:false}).limit(30);$('alkHistory').innerHTML=r.error?'<div class="empty">Chat history unavailable.</div>':(r.data||[]).map(m=>'<div class="list-item"><strong>'+(m.sender_id===profile.id?'You':'Metxon user')+' → '+(m.recipient_id===profile.id?'you':'recipient')+'</strong><div>'+esc(m.message)+'</div><small>'+esc(fmtDate(m.created_at))+'</small></div>').join('')||'<div class="empty">No messages yet.</div>';}
+async function sendMetAlkMessage(){
+  const u=$('alkRecipient').value.trim().toLowerCase(),m=$('alkMessage').value.trim(),file=$('alkPhoto')?.files?.[0]||null;
+  if(!u||(!m&&!file))return status('alkStatus','Enter a recipient and a message or photo.','error');
+  try{validateMettinAttachment(file);}catch(e){return status('alkStatus',e.message,'error');}
+  const btn=$('launchContent').querySelector('button[onclick="sendMetAlkMessage()"]');if(btn)btn.disabled=true;
+  let path=null;
+  try{
+    const q=await sb.from('profiles').select('id,username').ilike('username',u).maybeSingle();
+    if(q.error)throw q.error;if(!q.data)throw new Error('Recipient not found.');
+    if(file)path=await uploadMettinAttachment(file,'metalk');
+    const r=await sb.from('metalk_messages').insert({sender_id:profile.id,recipient_id:q.data.id,message:m||'📷 Photo',attachment_path:path});
+    if(r.error)throw r.error;
+    $('alkMessage').value='';$('alkPhoto').value='';
+    status('alkStatus',file?'Message and photo sent.':'Message sent.','success');
+    await loadMetAlkHistory();
+  }catch(e){
+    if(path)await sb.storage.from('mettin-app-attachments').remove([path]);
+    status('alkStatus',e.message||'Message send failed.','error');
+  }finally{if(btn)btn.disabled=false;}
+}
+async function loadMetAlkHistory(){
+  const r=await sb.from('metalk_messages').select('sender_id,recipient_id,message,attachment_path,created_at').or('sender_id.eq.'+profile.id+',recipient_id.eq.'+profile.id).order('created_at',{ascending:false}).limit(30);
+  if(r.error){$('alkHistory').innerHTML='<div class="empty">Chat history unavailable: '+esc(r.error.message)+'</div>';return;}
+  const rows=r.data||[],photos=new Map();
+  await Promise.all(rows.filter(x=>x.attachment_path).map(async x=>{const url=await getMettinAttachmentUrl(x.attachment_path);if(url)photos.set(x.attachment_path,url);}));
+  $('alkHistory').innerHTML=rows.map(m=>{
+    const photo=photos.get(m.attachment_path);
+    return '<div class="list-item"><strong>'+(m.sender_id===profile.id?'You':'Metxon user')+' → '+(m.recipient_id===profile.id?'you':'recipient')+'</strong><div>'+esc(m.message)+'</div>'+(photo?'<div style="margin-top:8px"><a href="'+esc(photo)+'" target="_blank" rel="noopener"><img src="'+esc(photo)+'" alt="Met-Alk photo attachment" style="max-width:220px;max-height:180px;object-fit:contain;border-radius:10px"></a></div>':'')+'<small>'+esc(fmtDate(m.created_at))+'</small></div>';
+  }).join('')||'<div class="empty">No messages yet.</div>';
+}
 async function loadMetPay(){if(!profile)return;$('payWallet').textContent=moneyJp(profile.jp_balance);$('payUser').textContent=profile.username||'—';const s=await rpc('metpay_password_status',{p_username:profile.username});$('payPassState').textContent=s.has_password?'Set':'Not set';$('metpaySetupForm').classList.toggle('hidden',!!s.has_password);$('metpayHelp').textContent=s.has_password?'Shared MetPay password is ready.':'Create a MetPay password before buying apps or sending JP.';const c=await sb.rpc('metpay_get_contacts_with_usernames');$('contactsList').innerHTML=c.error?'<div class="empty">Contacts unavailable.</div>':(c.data||[]).map(x=>'<div class="list-item"><strong>'+esc(x.username||x.display_name||'Metxon user')+'</strong><small>Saved contact · '+esc(fmtDate(x.created_at))+'</small></div>').join('')||'<div class="empty">No saved contacts.</div>';const t=await sb.from('metxon_jp_transactions').select('amount,transaction_type,note,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(12);$('payHistory').innerHTML=t.error?'<div class="empty">History unavailable.</div>':(t.data||[]).map(x=>'<div class="list-item"><div class="split"><strong>'+esc(x.transaction_type)+'</strong><small>'+esc(fmtDate(x.created_at))+'</small></div><div>'+esc(x.note)+'</div><strong class="price">'+(Number(x.amount)>=0?'+':'')+esc(moneyJp(x.amount))+'</strong></div>').join('')||'<div class="empty">No payments yet.</div>';}
 $('metpaySetupForm').addEventListener('submit',async e=>{e.preventDefault();try{await rpc('metpay_set_password',{p_username:profile.username,p_new_password:$('newMetpayPassword').value});$('newMetpayPassword').value='';status('metpaySetupStatus','MetPay password created in the shared credentials table.','success');await loadMetPay();}catch(err){status('metpaySetupStatus',err.message||'MetPay setup failed.','error');}});
 $('contactForm').addEventListener('submit',async e=>{e.preventDefault();try{await rpc('metpay_add_contact',{p_username:$('contactUsername').value.trim()});$('contactUsername').value='';status('contactStatus','Contact added.','success');await loadMetPay();}catch(err){status('contactStatus',err.message||'Could not add contact.','error');}});
