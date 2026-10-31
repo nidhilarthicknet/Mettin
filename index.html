@@ -514,6 +514,7 @@ async function openMettinNaApp(){
       if(r.error)throw r.error;
       path=null;
       status('naPostStatus','Post published'+(file?' with picture.':'.'),'success');
+      toast(file?'Met-Na post published with picture.':'Met-Na post published.','success');
       try{await openMettinNaApp();}catch(refreshError){status('naPostStatus','Post saved, but the feed could not refresh. Reopen Met-Na to see it.','error');}
     }catch(e){
       if(path)await sb.storage.from('mettin-app-attachments').remove([path]);
