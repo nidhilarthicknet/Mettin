@@ -394,7 +394,7 @@ async function loadStore(){
  const q=await sb.from('metxon_app_installations').select('app_id').eq('user_id',profile.id);
  installed=new Set(q.error?[]:(q.data||[]).map(x=>x.app_id));
  const officialCards=APPS.map(a=>'<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: Mettin Corporation Pvt. Ltd.</div><div class="split"><div><span class="pill">'+(a.id==='met_develop'?'Development':a.id==='metpay'?'Payments':'Nebula app')+'</span><h3 style="margin-top:12px">'+esc(a.name)+'</h3><p>'+esc(a.desc)+'</p></div><div style="font-size:1.7rem;color:var(--green)">'+esc(a.icon)+'</div></div><div class="price">'+(a.price===0?'Free':esc(moneyJp(a.price/100))+' <small>one-time</small>')+'</div>'+(installed.has(a.id)?'<span class="pill green">Installed</span> <button class="btn primary" onclick="launchApp(\''+a.id+'\')">Open app</button>':'<button class="btn primary" onclick="installApp(\''+a.id+'\')">'+(a.price===0?'Add app':'Install with MetPay')+'</button>')+'</div>').join('');
- const c=await sb.from('mettin_created_apps').select('id,creator_id,title,description,category,price_jp,app_code,source_language').eq('status','published').order('created_at',{ascending:false}).limit(60);
+ const c=await sb.from('mettin_created_apps').select('id,creator_id,title,description,category,price_jp,app_code,source_language,needs_backend').eq('status','published').order('created_at',{ascending:false}).limit(60);
  if(c.error){$('storeGrid').innerHTML=officialCards+'<div class="empty">Community apps could not be loaded: '+esc(c.error.message)+'</div>';$('customStoreGrid').innerHTML='';return;}
  const creatorIds=[...new Set((c.data||[]).map(a=>a.creator_id).filter(Boolean))];
  const creatorRows=creatorIds.length?await sb.from('profiles').select('id,username,display_name').in('id',creatorIds):{data:[],error:null};
@@ -403,7 +403,7 @@ async function loadStore(){
   const key='mettin_custom:'+a.id;
   const creator=a.creator_id===profile.id?'You':(creatorNames.get(a.creator_id)||'Metxon user');
   const action=installed.has(key)?'<span class="pill green">Installed</span> <button class="btn primary" onclick="launchCustomApp(\''+a.id+'\')">Open app</button>':a.creator_id===profile.id?'<button class="btn primary" onclick="launchCustomApp(\''+a.id+'\')">Preview app</button>':'<button class="btn primary" onclick="installCustomApp(\''+a.id+'\')">Install with MetPay</button>';
-  return '<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: '+esc(creator)+'</div><span class="pill">'+esc(a.category)+'</span><h3 style="margin-top:12px">'+esc(a.title)+'</h3><p>'+esc(a.description)+'</p><p class="small">'+esc(String(a.source_language||'html').toUpperCase())+' app source</p><div class="price">'+esc(moneyJp(a.price_jp))+'</div>'+action+'</div>';
+  return '<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: '+esc(creator)+'</div><span class="pill">'+esc(a.category)+'</span><h3 style="margin-top:12px">'+esc(a.title)+'</h3>'+(a.needs_backend?'<span class="pill">Supabase backend</span>':'<span class="pill">Browser-only</span>')+'<p>'+esc(a.description)+'</p><p class="small">'+esc(String(a.source_language||'html').toUpperCase())+' app source</p><div class="price">'+esc(moneyJp(a.price_jp))+'</div>'+action+'</div>';
  }).join('');
  $('storeGrid').innerHTML=officialCards+(communityCards||'<div class="empty">No community apps published yet. Create one in Develop.</div>');
  $('customStoreGrid').innerHTML='';
