@@ -1687,8 +1687,12 @@ function launchApp(id){
   if(id==='block_breaker')return launchBlockBreakerApp();
   if(id==='football')return launchFootballApp();
   if(id==='chess_boys')return launchChessBoysApp();
-  if(id==='cule_in'||id==='nebula_ai'){
-    const body='<div class="card"><h2>'+esc(a.name)+'</h2><div class="field"><label for="launchQuestion">Ask '+esc(a.name)+'</label><textarea id="launchQuestion" maxlength="4000" placeholder="Ask a question…"></textarea></div><button class="btn primary" onclick="runNebulaAssistant(\''+id+'\')">Ask</button><pre id="launchAnswer" class="codebox">Ready.</pre></div>';
+  if(id==='cule_in'){
+    const body='<div class="card" style="max-width:920px;margin:18px auto;padding:22px"><div style="text-align:center;margin-bottom:16px"><div style="font-size:2rem;font-weight:800;letter-spacing:-1px">Cule-In</div><p class="muted">Search the whole Metxon ecosystem using natural language.</p></div><div style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;padding:6px 8px 6px 18px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="launchQuestion" type="search" maxlength="4000" placeholder="What is Mettin? How does MetCount work? Find a Molecule device…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();runNebulaAssistant(\'cule_in\')}" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" onclick="runNebulaAssistant(\'cule_in\')" style="border-radius:999px;padding:11px 20px">⌕ Search</button></div><p class="small muted" style="margin:12px 8px">Ask full questions, compare products, or learn about any Metxon division or app.</p><div id="launchAnswer" class="codebox" style="white-space:pre-wrap;min-height:80px;margin-top:16px">Ask Cule-In anything about Metxon.</div></div>';
+    return renderLocalApp(a,body);
+  }
+  if(id==='nebula_ai'){
+    const body='<div class="card"><h2>Nebula AI</h2><div class="field"><label for="launchQuestion">Ask Nebula AI</label><textarea id="launchQuestion" maxlength="4000" placeholder="Ask a question…"></textarea></div><button class="btn primary" onclick="runNebulaAssistant(\'nebula_ai\')">Ask</button><pre id="launchAnswer" class="codebox">Ready.</pre></div>';
     return renderLocalApp(a,body);
   }
   if(id==='met_alk'){
