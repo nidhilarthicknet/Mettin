@@ -1133,7 +1133,7 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
     const g=chessState.game,meta=chessState.meta;
     const winner=meta.white===me.id?meta.black:meta.white;
     const {error}=await sb.from('chess_games').update({status:'resigned',winner,updated_at:new Date().toISOString()}).eq('id',chessState.gameId).eq('status','active');
-    if(error)alert(error.message);else{chessState.meta.status='resigned';chessState.meta.winner=winner;renderChessBoard();if(typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(chessState.gameId,'resigned',chessState.meta),80);}
+    if(error)alert(error.message);else{chessState.meta.status='resigned';chessState.meta.winner=winner;renderChessBoard();if(typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(chessState.gameId,winner===meta.white?'white_win':'black_win',chessState.meta),80);}
   };
 
   // Aliases used by older UI code.
