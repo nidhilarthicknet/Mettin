@@ -328,7 +328,67 @@ async function exportProjectAsApp(){
 }
 async function askDevelopAI(){const question='Help me develop or debug this Mettin project. Suggest next steps without claiming unexecuted code has run.\nProject: '+$('projectName').value+'\nSource:\n'+$('devCode').value.slice(0,12000);$('devOutput').textContent='Contacting Metxon AI…';try{const r=await sb.functions.invoke('metxon-ai',{body:{mode:'nebula',question:question,context:[{name:'Mettin Develop'}]}});if(r.error)throw r.error;if(!r.data||r.data.error)throw new Error(r.data&&r.data.error?r.data.error:'No AI response.');$('devOutput').textContent=r.data.answer||r.data.text||r.data.response||JSON.stringify(r.data,null,2);}catch(e){$('devOutput').textContent='Develop AI unavailable: '+(e.message||'Unknown error');}}
 function previewCreatedApp(){$('createdAppPreview').srcdoc=buildAppDocument($('newAppCode').value,$('newAppLanguage').value,'');status('createAppStatus','Preview refreshed. Supabase backend activates after publishing with a plan.');}
-$('createAppForm').addEventListener('submit',async e=>{e.preventDefault();const title=$('newAppTitle').value.trim(),description=$('newAppDescription').value.trim(),category=$('newAppCategory').value,price=Number($('newAppPrice').value),code=$('newAppCode').value,language=$('newAppLanguage').value;if(title.length<2||!description||!code.trim()||!Number.isFinite(price)||price<0||price>10000000 )return status('createAppStatus','Check the name, description, source code and JP price.','error');try{const r=await sb.from('mettin_created_apps').insert({creator_id:profile.id,title:title,description:description,category:category,price_jp:price,app_code:code,source_language:language,status:'published'}).select('id').single();if(r.error)throw r.error;$('createAppForm').reset();$('newAppPrice').value='0';$('newAppLanguage').value='html';status('createAppStatus','Your app is published to Nebula Store.','success');await loadStore();}catch(e){status('createAppStatus',e.message||'App could not be published.','error');}});
+function updateBackendPlanUI(){
+ const enabled=$('newAppNeedBackend').checked;
+ $('newAppBackendPanel').classList.toggle('hidden',!enabled);
+ const plan=$('newAppBackendPlan').value,quantity=$('newAppBackendQuantity');
+ quantity.disabled=plan==='unlimited';
+ if(plan==='unlimited')quantity.value='1';
+ const count=plan==='unlimited'?1:Number(quantity.value||1);
+ const capacities={personal:5,business:15,multitasking:30,unlimited:0};
+ const prices={personal:100,business:400,multitasking:1000,unlimited:500};
+ $('newAppBackendCost').textContent=plan==='unlimited'?'Unlimited storage · π500 per month · recurring':({personal:'Personal',business:'Business',multitasking:'Multi tasking'}[plan]+': '+(capacities[plan]*count)+' GB · Total: π'+(prices[plan]*count).toLocaleString('en-IN')+' prepaid');
+}
+$('newAppNeedBackend').addEventListener('change',updateBackendPlanUI);
+$('newAppBackendPlan').addEventListener('change',updateBackendPlanUI);
+$('newAppBackendQuantity').addEventListener('change',updateBackendPlanUI);
+updateBackendPlanUI();
+$('createAppForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const title=$('newAppTitle').value.trim(),description=$('newAppDescription').value.trim(),category=$('newAppCategory').value,price=Number($('newAppPrice').value),appCode=$('newAppCode').value,language=$('newAppLanguage').value;
+ const needsBackend=$('newAppNeedBackend').checked,plan=$('newAppBackendPlan').value,quantity=plan==='unlimited'?1:Number($('newAppBackendQuantity').value||1),metPayPassword=$('newAppBackendPassword').value;
+ if(title.length<2||!description||!appCode.trim()||!Number.isFinite(price)||price<0||price>10000000)return status('createAppStatus','Check the name, description, source code and JP price.','error');
+ if(!['html','javascript'].includes(language))return status('createAppStatus','Only HTML and JavaScript apps can currently run in Mettin.','error');
+ if(needsBackend&&metPayPassword.length<1)return status('createAppStatus','Enter your separate MetPay transaction password to purchase backend storage.','error');
+ if(needsBackend&&plan!=='unlimited'&&(!Number.isInteger(quantity)||quantity<1||quantity>5))return status('createAppStatus','Choose between 1 and 5 prepaid backend units.','error');
+ const publishButton=$('createAppForm').querySelector('button[type="submit"]');
+ publishButton.disabled=true;
+ let appId=null;
+ try{
+  status('createAppStatus',needsBackend?'Saving a private app draft before the backend purchase…':'Publishing your app…');
+  const created=await sb.from('mettin_created_apps').insert({
+    creator_id:profile.id,title,description,category,price_jp:price,app_code:appCode,
+    source_language:language,needs_backend:needsBackend,status:needsBackend?'draft':'published'
+  }).select('id').single();
+  if(created.error)throw created.error;
+  appId=created.data.id;
+  if(needsBackend){
+    status('createAppStatus','Verifying your backend plan and MetPay password…');
+    const payment=await sb.rpc('mettin_purchase_app_backend_plan',{
+      p_app_id:appId,p_plan_code:plan,p_quantity:quantity,p_metpay_password:metPayPassword
+    });
+    if(payment.error)throw payment.error;
+    status('createAppStatus','Backend purchased. Publishing your app…');
+    const publish=await sb.from('mettin_created_apps').update({status:'published',updated_at:new Date().toISOString()})
+      .eq('id',appId).eq('creator_id',profile.id).select('id').single();
+    if(publish.error)throw new Error('Backend plan purchased, but publishing needs a retry. Your draft remains saved: '+publish.error.message);
+  }
+  $('createAppForm').reset();
+  $('newAppPrice').value='0';
+  $('newAppLanguage').value='html';
+  $('newAppBackendPlan').value='personal';
+  $('newAppBackendQuantity').value='1';
+  $('newAppBackendPassword').value='';
+  updateBackendPlanUI();
+  status('createAppStatus',needsBackend?'App published with its Supabase backend plan.':'Your app is published to Nebula Store.','success');
+  await loadStore();
+ }catch(err){
+  status('createAppStatus',err.message||'App could not be published.','error');
+  if(appId)console.warn('Mettin draft retained for recovery:',appId);
+ }finally{
+  publishButton.disabled=false;
+ }
+});
 async function loadStore(){
  if(!profile)return;
  const q=await sb.from('metxon_app_installations').select('app_id').eq('user_id',profile.id);
