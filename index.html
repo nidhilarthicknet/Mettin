@@ -682,9 +682,11 @@ boot().catch(e=>{console.error('Mettin initialization:',e);gateMessage(e.message
   };
   function navTarget(node){
     if(!(node instanceof Element))return null;
-    const target=node.closest('button,a[href],input[type="submit"],[role="button"]');
+    // Only route actual page-navigation controls through the Metxon transition.
+    // App launches and ordinary actions must run in Mettin without triggering a site transition.
+    const target=node.closest('a[href],button[data-page],button[data-nav],[role="button"][onclick*="showPage("]');
     if(!target)return null;
-    if(target.matches('button[onclick*="tryShow("],button[onclick*="openApp("]'))return null;
+    if(target.matches('button[onclick*="launchApp("],button[onclick*="launchCustomApp("],button[onclick*="openApp("],button[onclick*="tryShow("]'))return null;
     return target;
   }
   function paymentTarget(node){
