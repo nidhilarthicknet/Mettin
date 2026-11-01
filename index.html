@@ -850,6 +850,10 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
             chessState.meta.lastMove=g.last_move;
             chessState.selected=null;chessState.legal=[];
             renderChessBoard();
+            if(g.status&&g.status!=='active'&&typeof window.showChessFinishModal==='function'){
+              const result=g.status==='stalemate'?'draw':(g.winner===chessState.meta.white?'white_win':'black_win');
+              setTimeout(()=>window.showChessFinishModal(gameId,result,chessState.meta),80);
+            }
           }).subscribe();
     }catch(e){/* polling fallback below */}
   }
@@ -1089,7 +1093,8 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
         const existingHistory=Array.isArray(g.position_history)?g.position_history.slice():[];
         if(!existingHistory.length) existingHistory.push({fen:chessToFen(g),label:'Initial position'});
         existingHistory.push({fen:chessToFen(next),label:`After ${hist.length}. ${squareName(move.from[0],move.from[1])}-${squareName(move.to[0],move.to[1])}`,move_index:hist.length});
-        const {error}=await sb.from('chess_games').update({
+        next.move_history=hist;next.position_history=existingHistory;
+        const {data:savedMove,error}=await sb.from('chess_games').update({
           board_state:next,
           turn:next.turn,
           move_history:hist,
@@ -1098,8 +1103,9 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
           status,
           winner,
           updated_at:new Date().toISOString()
-        }).eq('id',chessState.gameId).eq('status','active');
+        }).eq('id',chessState.gameId).eq('status','active').eq('turn',g.turn).select('id').maybeSingle();
         if(error){alert(error.message||'Move could not be saved');return;}
+        if(!savedMove){alert('The other player moved first. Refreshing the latest game state.');await chessOpenGame(chessState.gameId);return;}
         chessState.game=next;chessState.meta.status=status;chessState.meta.winner=winner;
         chessState.selected=null;chessState.legal=[];renderChessBoard();
         if(status!=='active'&&typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(chessState.gameId,status==='stalemate'?'draw':(winner===meta.white?'white_win':'black_win'),chessState.meta),80);
@@ -1127,7 +1133,7 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
     const g=chessState.game,meta=chessState.meta;
     const winner=meta.white===me.id?meta.black:meta.white;
     const {error}=await sb.from('chess_games').update({status:'resigned',winner,updated_at:new Date().toISOString()}).eq('id',chessState.gameId).eq('status','active');
-    if(error)alert(error.message);else{chessState.meta.status='resigned';chessState.meta.winner=winner;renderChessBoard();}
+    if(error)alert(error.message);else{chessState.meta.status='resigned';chessState.meta.winner=winner;renderChessBoard();if(typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(chessState.gameId,'resigned',chessState.meta),80);}
   };
 
   // Aliases used by older UI code.
