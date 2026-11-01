@@ -912,8 +912,8 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
             chessState.meta.lastMove=g.last_move;
             chessState.selected=null;chessState.legal=[];
             renderChessBoard();
-            if(g.status&&g.status!=='active'&&typeof window.showChessFinishModal==='function'){
-              const result=g.status==='stalemate'?'draw':(g.winner===chessState.meta.white?'white_win':'black_win');
+            if(['white_win','black_win','stalemate'].includes(g.status)&&typeof window.showChessFinishModal==='function'){
+              const result=g.status==='stalemate'?'draw':g.status;
               setTimeout(()=>window.showChessFinishModal(gameId,result,chessState.meta),80);
             }
           }).subscribe();
@@ -1108,7 +1108,7 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
     const check=inCheck(g,g.turn);
     const moves=allLegalMoves(g,g.turn);
     let statusText=g.turn==='white'?'White to move':'Black to move';
-    if(meta.status==='checkmate')statusText=`Checkmate — ${meta.winner===meta.white?meta.white_username:meta.black_username} wins.`;
+    if(meta.status==='checkmate'||meta.status==='white_win'||meta.status==='black_win')statusText=`Checkmate — ${meta.winner===meta.white?meta.white_username:meta.black_username} wins.`;
     else if(meta.status==='stalemate')statusText='Stalemate — draw.';
     else if(meta.status==='resigned')statusText=`Game ended by resignation — ${meta.winner===meta.white?meta.white_username:meta.black_username} wins.`;
     else if(check&&moves.length)statusText+=' — CHECK';
@@ -1170,7 +1170,16 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
         if(!savedMove){alert('The other player moved first. Refreshing the latest game state.');await chessOpenGame(chessState.gameId);return;}
         chessState.game=next;chessState.meta.status=status;chessState.meta.winner=winner;
         chessState.selected=null;chessState.legal=[];renderChessBoard();
-        if(status!=='active'&&typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(chessState.gameId,status==='stalemate'?'draw':(winner===meta.white?'white_win':'black_win'),chessState.meta),80);
+        if(status!=='active'){
+          const finalResult=status==='stalemate'?'draw':(winner===meta.white?'white_win':'black_win');
+          const rated=await sb.rpc('metchon_chess_finish_game',{p_game_id:chessState.gameId,p_result:finalResult});
+          if(rated.error){
+            alert('The game ended, but the rating update failed: '+rated.error.message+'. Keep this game open and try the result action again.');
+          }else{
+            await chessOpenGame(chessState.gameId);
+            if(typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(chessState.gameId,finalResult,chessState.meta),80);
+          }
+        }
         return;
       }
       // Select a different own piece instead of silently clearing.
@@ -1194,8 +1203,15 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
     const me=await mettinChessAccount();if(!me)return;
     const g=chessState.game,meta=chessState.meta;
     const winner=meta.white===me.id?meta.black:meta.white;
-    const {error}=await sb.from('chess_games').update({status:'resigned',winner,updated_at:new Date().toISOString()}).eq('id',chessState.gameId).eq('status','active');
-    if(error)alert(error.message);else{chessState.meta.status='resigned';chessState.meta.winner=winner;renderChessBoard();if(typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(chessState.gameId,winner===meta.white?'white_win':'black_win',chessState.meta),80);}
+    const gameId=chessState.gameId;
+    const {data:saved,error}=await sb.from('chess_games').update({status:'resigned',winner,updated_at:new Date().toISOString()}).eq('id',gameId).eq('status','active').select('id').maybeSingle();
+    if(error){alert(error.message);return;}
+    if(!saved){alert('The game is no longer active. Refreshing the result.');await chessOpenGame(gameId);return;}
+    const result=winner===meta.white?'white_win':'black_win';
+    const rated=await sb.rpc('metchon_chess_finish_game',{p_game_id:gameId,p_result:result});
+    if(rated.error){alert('Resignation was saved, but the rating update failed: '+rated.error.message);await chessOpenGame(gameId);return;}
+    await chessOpenGame(gameId);
+    if(typeof window.showChessFinishModal==='function')setTimeout(()=>window.showChessFinishModal(gameId,result,chessState.meta),80);
   };
 
   // Aliases used by older UI code.
