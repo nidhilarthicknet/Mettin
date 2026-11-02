@@ -956,11 +956,12 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
     const area=document.getElementById('gameArea');if(!area)return;
     area.innerHTML=`
       <div class="card">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-primary" id="chessChallengeTab">Challenge Username</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <button class="btn btn-primary" id="chessBotsTab">Play with Bots</button>
+          <button class="btn" id="chessChallengeTab">Play with Username</button>
           <button class="btn" id="chessRandomTab">Random Matchmaking</button>
         </div>
-        <div id="chessBotsPanel" class="card" style="margin-top:14px;">
+        <div id="chessBotsPanel" class="card" style="margin-top:8px;">
           <h3 style="margin:0 0 6px;">Play with Bots</h3>
           <p style="color:var(--muted);margin:0 0 10px;">
             Play against Stockfish. Choose the bot's difficulty/ELO.
@@ -975,7 +976,7 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
         </div>
 
 
-        <div id="chessChallengePanel" style="margin-top:12px;">
+        <div id="chessChallengePanel" style="display:none;margin-top:12px;">
           <p style="color:var(--muted);margin:0 0 8px;">Challenge another Metxon username to a standard chess game.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <input id="chessOpp" placeholder="Opponent username" style="flex:1;min-width:220px;">
@@ -1002,14 +1003,18 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
       </div>
     `;
 
-    document.getElementById('chessChallengeTab').onclick=()=>{
-      document.getElementById('chessChallengePanel').style.display='block';
-      document.getElementById('chessRandomPanel').style.display='none';
+    const chessPanels={bots:document.getElementById('chessBotsPanel'),username:document.getElementById('chessChallengePanel'),random:document.getElementById('chessRandomPanel')};
+    const chessTabs={bots:document.getElementById('chessBotsTab'),username:document.getElementById('chessChallengeTab'),random:document.getElementById('chessRandomTab')};
+    const showChessMode=mode=>{
+      Object.keys(chessPanels).forEach(key=>{
+        chessPanels[key].style.display=key===mode?'block':'none';
+        chessTabs[key].classList.toggle('btn-primary',key===mode);
+      });
     };
-    document.getElementById('chessRandomTab').onclick=()=>{
-      document.getElementById('chessChallengePanel').style.display='none';
-      document.getElementById('chessRandomPanel').style.display='block';
-    };
+    chessTabs.bots.onclick=()=>showChessMode('bots');
+    chessTabs.username.onclick=()=>showChessMode('username');
+    chessTabs.random.onclick=()=>showChessMode('random');
+    showChessMode('bots');
 
     loadChessLobby();
     chessChallengeTimer=setInterval(loadChessLobby,2500);
