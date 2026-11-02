@@ -106,7 +106,8 @@ let metxonHomeTimer=null;
 const esc=v=>String(v===null||v===undefined?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const APPS=[
  {id:'met_develop',name:'MetDevelop',price:20000,desc:'Development workspace, MetLang/Atbash, SME development and cloud saving.',icon:'⌘'},
- {id:'cule_in',name:'Cule-In',price:1000,desc:'Natural-language Metxon product and device search.',icon:'⌕'},
+ {id:'cule_in',name:'Cule-In',price:1000,desc:'Hardcoded Metxon knowledge search from Supabase. No OpenAI calls.',icon:'⌕'},
+ {id:'cule_ai',name:'Cule AI',price:0,desc:'Conversational Metxon guide with new chats and saved conversation history.',icon:'✦'},
  {id:'nebula_ai',name:'Nebula AI',price:10000,desc:'Nebula AI assistant terminal.',icon:'✦'},
  {id:'met_alk',name:'Met-Alk',price:15000,desc:'Username-based messaging, friends and cloud chat.',icon:'↔'},
  {id:'block_breaker',name:'Block Breaker',price:500,desc:'Arcade brick breaker with levels, touch and keyboard controls.',icon:'▦'},
@@ -1769,12 +1770,18 @@ function launchApp(id){
   if(id==='football')return launchFootballApp();
   if(id==='chess_boys')return launchChessBoysApp();
   if(id==='cule_in'){
-    const body='<div class="card" style="max-width:920px;margin:18px auto;padding:22px"><div style="text-align:center;margin-bottom:16px"><div style="font-size:2rem;font-weight:800;letter-spacing:-1px">Cule-In</div><p class="muted">Search the whole Metxon ecosystem using natural language.</p></div><div style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;padding:6px 8px 6px 18px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="launchQuestion" type="search" maxlength="4000" placeholder="What is Mettin? How does MetCount work? Find a Molecule device…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();runNebulaAssistant(\'cule_in\')}" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" onclick="runNebulaAssistant(\'cule_in\')" style="border-radius:999px;padding:11px 20px">⌕ Search</button></div><p class="small muted" style="margin:12px 8px">Ask full questions, compare products, or learn about any Metxon division or app.</p><div id="launchAnswer" class="codebox" style="white-space:pre-wrap;min-height:80px;margin-top:16px">Ask Cule-In anything about Metxon.</div></div>';
+    const body='<div class="card" style="max-width:980px;margin:16px auto;padding:22px"><div style="text-align:center;margin-bottom:18px"><div style="font-size:2rem;font-weight:800;letter-spacing:-1px">Cule-In</div><p class="muted">Metxon knowledge search · Supabase reference database · No OpenAI calls</p></div><div style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:999px;padding:7px 9px 7px 20px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="culeSearchBox" type="search" maxlength="1200" placeholder="Ask about Metxon, Molecule devices, Mettin apps, MetCount, subsidiaries…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();searchCuleIn()}" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" id="culeSearchButton" onclick="searchCuleIn()" style="border-radius:999px;padding:11px 22px">⌕ Search</button></div><div id="culeInStatus" class="status" aria-live="polite" style="margin:12px 8px"></div><div id="culeInAnswer" class="codebox" style="white-space:pre-wrap;min-height:64px;margin-top:12px">Ask a natural-language question to search the Metxon knowledge base.</div><div id="culeInResults" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px"></div></div>';
     return renderLocalApp(a,body);
   }
+  if(id==='cule_ai'){
+    renderLocalApp(a,mettinAiChatMarkup('cule_ai'));
+    initMettinAiChat('cule_ai');
+    return;
+  }
   if(id==='nebula_ai'){
-    const body='<div class="card"><h2>Nebula AI</h2><div class="field"><label for="launchQuestion">Ask Nebula AI</label><textarea id="launchQuestion" maxlength="4000" placeholder="Ask a question…"></textarea></div><button class="btn primary" onclick="runNebulaAssistant(\'nebula_ai\')">Ask</button><pre id="launchAnswer" class="codebox">Ready.</pre></div>';
-    return renderLocalApp(a,body);
+    renderLocalApp(a,mettinAiChatMarkup('nebula_ai'));
+    initMettinAiChat('nebula_ai');
+    return;
   }
   if(id==='met_alk'){
     const body='<div class="card"><h2>Met-Alk</h2><p>Send an internal message to another Metxon username.</p><div class="field"><label>Recipient username</label><input id="alkRecipient"></div><div class="field"><label>Message</label><textarea id="alkMessage" maxlength="4000"></textarea></div><div class="field"><label for="alkPhoto">Attach a photo (optional · JPG, PNG or WebP · up to 5 MB)</label><input id="alkPhoto" type="file" accept="image/jpeg,image/png,image/webp"></div><button class="btn primary" onclick="sendMetAlkMessage()">Send message</button><div id="alkStatus" class="status" aria-live="polite"></div><div id="alkHistory" class="list"></div></div>';
@@ -1783,28 +1790,117 @@ function launchApp(id){
   return renderLocalApp(a,'<div class="card"><h2>'+esc(a.name)+'</h2><p>'+esc(a.desc)+'</p><p>This app is running inside Mettin; no redirect to the Metxon corporate homepage is used.</p></div>');
 }
 
-async function runNebulaAssistant(id){
- const question=$('launchQuestion').value.trim();if(!question)return;
- const answer=$('launchAnswer');answer.textContent='Checking Metxon ecosystem information…';
- const ecosystem=[
-  {name:'Metxon Corporate',role:'Central company website, account identity and ecosystem overview',url:'https://nidhilarthicknet.github.io/metxon/'},
-  {name:'MetCart',role:'Device, component and accessory catalogue, configurations, orders and seller listings',url:'https://nidhilarthicknet.github.io/MetCart/'},
-  {name:'MetCount',role:'Finance dashboard, InstaPay wallet, MetBank, stocks and portfolio tools',url:'https://nidhilarthicknet.github.io/MetCount/'},
-  {name:'MetVerse',role:'Games and interactive experiences',url:'https://nidhilarthicknet.github.io/MetVerse/'},
-  {name:'Mettin',role:'Software, Nebula Store apps, creator projects, MetDevelop and Cule-In',url:'https://nidhilarthicknet.github.io/Mettin/'},
-  {name:'Met-Ail',role:'Internal Metxon mail and notifications'},
-  {name:'Met-Cloud',role:'Personal cloud storage and files'},
-  {name:'MetPay / InstaPay',role:'Metxon JP payment and wallet services'},
-  {name:'MetBank',role:'Metxon banking and account balance services'},
-  {name:'Metxon Care',role:'Support requests, replies and care plans'},
-  {name:'Molecule',role:'Metxon device discovery and configuration experience'}
- ];
- const catalog={apps:APPS.map(a=>({name:a.name,description:a.desc,price_jp:a.price/100}))};
+async function searchCuleIn(){
+ const question=$('culeSearchBox')?.value.trim();
+ if(!question)return status('culeInStatus','Type a Metxon question first.','error');
+ const button=$('culeSearchButton');if(button)button.disabled=true;
+ status('culeInStatus','Searching the Supabase Metxon knowledge base and public catalogue…');
+ $('culeInAnswer').textContent='';
+ $('culeInResults').innerHTML='';
  try{
-  const r=await sb.functions.invoke('metxon-ai',{body:{mode:id==='cule_in'?'cule':'nebula',question,context:[{name:'Metxon ecosystem map',services:ecosystem},{name:'Mettin Nebula app catalogue',...catalog}]}});
-  if(r.error)throw r.error;if(!r.data||r.data.error)throw new Error(r.data?.error||'No AI answer.');
-  answer.textContent=r.data.answer||r.data.text||r.data.response||JSON.stringify(r.data,null,2);
- }catch(e){answer.textContent='AI service unavailable: '+(e.message||'Unknown error')+'. Check that the Metxon AI service is configured and try again.';}
+  const r=await sb.functions.invoke('cule-in-search',{body:{question}});
+  if(r.error)throw r.error;
+  if(!r.data||r.data.error)throw new Error(r.data?.error||'Cule-In returned no search results.');
+  $('culeInAnswer').textContent=r.data.answer||'No matching information was found.';
+  const results=Array.isArray(r.data.results)?r.data.results:[];
+  $('culeInResults').innerHTML=results.map(x=>{
+    const links=Array.isArray(x.links)?x.links.filter(l=>/^https:\/\/nidhilarthicknet\.github\.io\//i.test(String(l.url||''))):[];
+    return '<article class="card" style="margin:0;padding:14px"><span class="pill">'+esc(x.category||'Metxon reference')+'</span><h3 style="margin:8px 0">'+esc(x.title||'Metxon information')+'</h3><p>'+esc(x.summary||'')+'</p>'+(x.details?'<p class="small muted">'+esc(x.details)+'</p>':'')+(links.length?'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'+links.map(l=>'<a class="btn" href="'+esc(l.url)+'" target="_blank" rel="noopener">'+esc(l.label||'Visit')+' ↗</a>').join('')+'</div>':'')+'</article>';
+  }).join('');
+  status('culeInStatus',(results.length||0)+' matching public reference result(s).'+(r.data.product_count?' Current product catalogue: '+r.data.product_count+' names.':''),'success');
+ }catch(e){
+  $('culeInAnswer').textContent='Cule-In could not search the knowledge base: '+(e.message||'Unknown error');
+  status('culeInStatus','Search failed. Check the Supabase function and try again.','error');
+ }finally{if(button)button.disabled=false;}
+}
+
+let mettinAiChatState={assistant:null,conversationId:null,messages:[],busy:false};
+function mettinAiChatMarkup(assistant){
+ const name=assistant==='cule_ai'?'Cule AI':'Nebula AI';
+ const intro=assistant==='cule_ai'?'Ask about Metxon, its divisions, apps, products and where to find services.':'Ask Nebula AI questions and continue conversations across chats.';
+ return '<div class="card" style="padding:0;overflow:hidden"><div style="display:grid;grid-template-columns:minmax(190px,245px) minmax(0,1fr);min-height:560px;max-height:78vh"><aside style="padding:14px;border-right:1px solid var(--border);background:var(--panel);overflow:auto"><button class="btn primary" id="mettinAiNewChat" style="width:100%">＋ New chat</button><h3 style="font-size:.9rem;margin:18px 4px 8px">Your chat history</h3><div id="mettinAiChatList" style="display:grid;gap:6px"><p class="small muted">Loading chats…</p></div></aside><section style="display:flex;flex-direction:column;min-width:0;min-height:560px"><div style="padding:13px 16px;border-bottom:1px solid var(--border)"><strong>'+name+'</strong><p class="small muted" style="margin:4px 0 0">'+intro+'</p></div><div id="mettinAiMessages" aria-live="polite" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px"><div class="card"><b>'+name+'</b><p>'+intro+'</p><p class="small muted">Start a new chat or choose a previous conversation from the left.</p></div></div><div style="padding:12px;border-top:1px solid var(--border)"><div style="display:flex;align-items:flex-end;gap:8px"><textarea id="mettinAiInput" rows="2" maxlength="4000" placeholder="Message '+name+'… (Enter to send, Shift+Enter for a new line)" style="flex:1;min-width:0;resize:vertical;min-height:48px;max-height:150px"></textarea><button class="btn primary" id="mettinAiSend">Send</button></div><p id="mettinAiStatus" class="small muted" style="margin:6px 3px 0">Your chats are saved privately to your Metxon account.</p></div></section></div></div>';
+}
+function aiSafeMessageHtml(value){
+ const escaped=esc(value);
+ return escaped.replace(/https:\/\/nidhilarthicknet\.github\.io\/[A-Za-z0-9_/?=&.%#-]*/g,url=>'<a href="'+url+'" target="_blank" rel="noopener">'+url+'</a>').replace(/\n/g,'<br>');
+}
+function renderMettinAiMessages(){
+ const box=$('mettinAiMessages');if(!box)return;
+ if(!mettinAiChatState.messages.length){
+  box.innerHTML='<div class="card"><b>'+ (mettinAiChatState.assistant==='cule_ai'?'Cule AI':'Nebula AI')+'</b><p>What would you like to explore?</p><p class="small muted">You can ask follow-up questions, open a new chat, or return to a previous conversation.</p></div>';
+  return;
+ }
+ box.innerHTML=mettinAiChatState.messages.map(m=>'<div style="display:flex;justify-content:'+(m.role==='user'?'flex-end':'flex-start')+'"><div class="card" style="max-width:min(88%,760px);padding:12px 15px;margin:0;background:'+(m.role==='user'?'var(--panel)':'var(--card)')+'"><div class="small muted" style="font-weight:700;margin-bottom:5px">'+(m.role==='user'?'You':(mettinAiChatState.assistant==='cule_ai'?'Cule AI':'Nebula AI'))+'</div><div style="white-space:normal;line-height:1.55">'+aiSafeMessageHtml(m.content)+'</div></div></div>').join('');
+ box.scrollTop=box.scrollHeight;
+}
+async function refreshMettinAiChatList(){
+ const box=$('mettinAiChatList');if(!box||!profile)return;
+ const r=await sb.from('mettin_ai_conversations').select('id,title,updated_at').eq('owner_id',profile.id).eq('assistant_key',mettinAiChatState.assistant).order('updated_at',{ascending:false}).limit(60);
+ if(r.error){box.innerHTML='<p class="small" style="color:var(--red)">Chat history unavailable: '+esc(r.error.message)+'</p>';return;}
+ const rows=r.data||[];
+ box.innerHTML=rows.map(x=>'<button type="button" class="btn" data-ai-conversation="'+esc(x.id)+'" style="text-align:left;white-space:normal;background:'+(x.id===mettinAiChatState.conversationId?'var(--panel)':'transparent')+';border-color:'+(x.id===mettinAiChatState.conversationId?'var(--accent)':'var(--border)')+'">'+esc(x.title||'New chat')+'</button>').join('')||'<p class="small muted">No saved chats yet.</p>';
+ box.querySelectorAll('[data-ai-conversation]').forEach(b=>b.addEventListener('click',()=>openMettinAiConversation(b.dataset.aiConversation)));
+}
+async function createMettinAiConversation(){
+ if(!profile)throw new Error('Sign in to save conversations.');
+ const r=await sb.from('mettin_ai_conversations').insert({owner_id:profile.id,assistant_key:mettinAiChatState.assistant,title:'New chat'}).select('id,title').single();
+ if(r.error)throw r.error;
+ mettinAiChatState.conversationId=r.data.id;mettinAiChatState.messages=[];
+ renderMettinAiMessages();await refreshMettinAiChatList();
+ return r.data.id;
+}
+async function openMettinAiConversation(id){
+ if(!profile||!id)return;
+ const check=await sb.from('mettin_ai_conversations').select('id').eq('id',id).eq('owner_id',profile.id).eq('assistant_key',mettinAiChatState.assistant).maybeSingle();
+ if(check.error||!check.data)return status('mettinAiStatus','That conversation is unavailable.','error');
+ const r=await sb.from('mettin_ai_messages').select('id,role,content,created_at').eq('conversation_id',id).eq('owner_id',profile.id).order('created_at',{ascending:true}).limit(300);
+ if(r.error)return status('mettinAiStatus','Could not load chat history: '+r.error.message,'error');
+ mettinAiChatState.conversationId=id;mettinAiChatState.messages=r.data||[];
+ renderMettinAiMessages();await refreshMettinAiChatList();
+}
+async function initMettinAiChat(assistant){
+ mettinAiChatState={assistant,conversationId:null,messages:[],busy:false};
+ if(!profile){status('mettinAiStatus','Sign in to use private saved chat history.','error');return;}
+ $('mettinAiNewChat').addEventListener('click',async()=>{
+  try{await createMettinAiConversation();status('mettinAiStatus','New chat created.');$('mettinAiInput').focus();}
+  catch(e){status('mettinAiStatus',e.message||'Could not create a chat.','error');}
+ });
+ $('mettinAiSend').addEventListener('click',sendMettinAiMessage);
+ $('mettinAiInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMettinAiMessage();}});
+ await refreshMettinAiChatList();
+ const recent=await sb.from('mettin_ai_conversations').select('id').eq('owner_id',profile.id).eq('assistant_key',assistant).order('updated_at',{ascending:false}).limit(1);
+ if(!recent.error&&recent.data?.[0])await openMettinAiConversation(recent.data[0].id);
+}
+async function sendMettinAiMessage(){
+ if(mettinAiChatState.busy)return;
+ const input=$('mettinAiInput'),question=input?.value.trim();
+ if(!question)return;
+ mettinAiChatState.busy=true;
+ const send=$('mettinAiSend');if(send)send.disabled=true;
+ input.disabled=true;input.value='';
+ try{
+  if(!mettinAiChatState.conversationId)await createMettinAiConversation();
+  const userInsert=await sb.from('mettin_ai_messages').insert({conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'user',content:question}).select('id,role,content,created_at').single();
+  if(userInsert.error)throw userInsert.error;
+  mettinAiChatState.messages.push(userInsert.data);renderMettinAiMessages();
+  const history=mettinAiChatState.messages.slice(-12).map(m=>({role:m.role,content:m.content}));
+  const mode=mettinAiChatState.assistant==='cule_ai'?'cule_chat':'nebula';
+  const response=await sb.functions.invoke('metxon-ai',{body:{mode,question,history}});
+  if(response.error)throw response.error;
+  if(!response.data||response.data.error)throw new Error(response.data?.error||'The assistant did not return a reply.');
+  const content=String(response.data.answer||'').trim();if(!content)throw new Error('The assistant returned an empty reply.');
+  const saved=await sb.from('mettin_ai_messages').insert({conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'assistant',content}).select('id,role,content,created_at').single();
+  if(saved.error)throw saved.error;
+  mettinAiChatState.messages.push(saved.data);
+  const title=question.length>64?question.slice(0,61)+'…':question;
+  await sb.from('mettin_ai_conversations').update({title,updated_at:new Date().toISOString()}).eq('id',mettinAiChatState.conversationId).eq('owner_id',profile.id);
+  renderMettinAiMessages();await refreshMettinAiChatList();
+  status('mettinAiStatus','Saved to your '+(mettinAiChatState.assistant==='cule_ai'?'Cule AI':'Nebula AI')+' history.','success');
+ }catch(e){
+  status('mettinAiStatus',e.message||'Message could not be sent.','error');
+ }finally{
+  mettinAiChatState.busy=false;if(send)send.disabled=false;input.disabled=false;input.focus();
+ }
 }
 async function sendMetAlkMessage(){
   const u=$('alkRecipient').value.trim().toLowerCase(),m=$('alkMessage').value.trim(),file=$('alkPhoto')?.files?.[0]||null;
