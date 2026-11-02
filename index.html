@@ -950,6 +950,7 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
   }
 
   startChess=function(){
+    window.__mettinBotGame=null;
     stopChessPoll();
     const area=document.getElementById('gameArea');if(!area)return;
     area.innerHTML=`
@@ -1535,7 +1536,7 @@ async function mettinChessFindProfile(username){const found=await rpc('metxon_fi
             }
           });
         }
-        setTimeout(bindBotBoardFallback,0);
+        if(window.__mettinBotGame)setTimeout(bindBotBoardFallback,0);
       };
       I.__botRenderWrapped=true;
     }
