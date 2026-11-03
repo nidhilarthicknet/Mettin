@@ -107,8 +107,8 @@ const esc=v=>String(v===null||v===undefined?'':v).replace(/[&<>"']/g,c=>({'&':'&
 const APPS=[
  {id:'met_develop',name:'MetDevelop',price:20000,desc:'Development workspace, MetLang/Atbash, SME development and cloud saving.',icon:'⌘'},
  {id:'cule_in',name:'Cule-In',price:1000,desc:'Hardcoded Metxon knowledge search from Supabase. No OpenAI calls.',icon:'⌕'},
- {id:'cule_ai',name:'Cule AI',price:0,desc:'Conversational Metxon guide with new chats and saved conversation history.',icon:'✦'},
- {id:'nebula_ai',name:'Nebula AI',price:10000,desc:'Conversational AI chat with new chats and saved private history.',icon:'✦'},
+ {id:'cule_ai',name:'Cule AI',price:0,desc:'Hardcoded Metxon knowledge chat with new chats and saved history. No external AI API.',icon:'✦'},
+ {id:'nebula_ai',name:'Nebula AI',price:10000,desc:'Hardcoded Metxon knowledge chat with new chats and saved private history. No external AI API.',icon:'✦'},
  {id:'met_alk',name:'Met-Alk',price:15000,desc:'Username-based messaging, friends and cloud chat.',icon:'↔'},
  {id:'block_breaker',name:'Block Breaker',price:500,desc:'Arcade brick breaker with levels, touch and keyboard controls.',icon:'▦'},
  {id:'football',name:'Football',price:200,desc:'One-player football challenge.',icon:'⚽'},
@@ -1830,7 +1830,7 @@ async function searchCuleIn(){
 let mettinAiChatState={assistant:null,conversationId:null,messages:[],busy:false};
 function mettinAiChatMarkup(assistant){
  const name=assistant==='cule_ai'?'Cule AI':'Nebula AI';
- const intro=assistant==='cule_ai'?'Ask about Metxon, its divisions, apps, products and where to find services.':'Ask Nebula AI questions and continue conversations across chats.';
+ const intro=assistant==='cule_ai'?'Ask anything about Metxon, its divisions, subsidiaries, devices, specifications and how to use its services. No external AI API is used.':'Ask about Metxon, its devices, apps, subsidiaries, directions and how to use its services. No external AI API is used.';
  return '<div class="card" style="padding:0;overflow:hidden"><div style="display:grid;grid-template-columns:minmax(135px, min(34%, 235px)) minmax(0,1fr);min-height:560px;max-height:78vh"><aside style="padding:14px;border-right:1px solid var(--border);background:var(--panel);overflow:auto"><button class="btn primary" id="mettinAiNewChat" style="width:100%">＋ New chat</button><h3 style="font-size:.9rem;margin:18px 4px 8px">Your chat history</h3><div id="mettinAiChatList" style="display:grid;gap:6px"><p class="small muted">Loading chats…</p></div></aside><section style="display:flex;flex-direction:column;min-width:0;min-height:560px"><div style="padding:13px 16px;border-bottom:1px solid var(--border)"><strong>'+name+'</strong><p class="small muted" style="margin:4px 0 0">'+intro+'</p></div><div id="mettinAiMessages" aria-live="polite" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px"><div class="card"><b>'+name+'</b><p>'+intro+'</p><p class="small muted">Start a new chat or choose a previous conversation from the left.</p></div></div><div style="padding:12px;border-top:1px solid var(--border)"><div style="display:flex;align-items:flex-end;gap:8px"><textarea id="mettinAiInput" rows="2" maxlength="4000" placeholder="Message '+name+'… (Enter to send, Shift+Enter for a new line)" style="flex:1;min-width:0;resize:vertical;min-height:48px;max-height:150px"></textarea><button class="btn primary" id="mettinAiSend">Send</button></div><p id="mettinAiStatus" class="small muted" style="margin:6px 3px 0">Your chats are saved privately to your Metxon account.</p></div></section></div></div>';
 }
 function aiSafeMessageHtml(value){
@@ -1897,8 +1897,7 @@ async function sendMettinAiMessage(){
   if(userInsert.error)throw userInsert.error;
   mettinAiChatState.messages.push(userInsert.data);renderMettinAiMessages();
   const history=mettinAiChatState.messages.slice(-13,-1).map(m=>({role:m.role,content:m.content}));
-  const mode=mettinAiChatState.assistant==='cule_ai'?'cule_chat':'nebula';
-  const response=await sb.functions.invoke('metxon-ai',{body:{mode,question,history}});
+  const response=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
   if(response.error)throw response.error;
   if(!response.data||response.data.error)throw new Error(response.data?.error||'The assistant did not return a reply.');
   const content=String(response.data.answer||'').trim();if(!content)throw new Error('The assistant returned an empty reply.');
