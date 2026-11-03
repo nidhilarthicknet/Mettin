@@ -1857,6 +1857,174 @@ async function searchCuleIn(){
  }finally{if(button)button.disabled=false;}
 }
 
+let mettinAiChatState={assistant:null,conversationId:null,messages:[],busy:false,drawerOpen:false};
+function mettinAiChatMarkup(assistant){
+ const name=assistant==='cule_ai'?'Cule AI':'Nebula AI';
+ return '<style>'+
+ '.mettin-ai-shell{position:relative;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;box-sizing:border-box;background:#07111d;color:#edf5fc;border:0;border-radius:0}'+
+ '.mettin-ai-top{height:64px;min-height:64px;display:flex;align-items:center;gap:13px;padding:0 18px;border-bottom:1px solid #203449;background:#091725}'+
+ '.mettin-ai-mark{width:42px;height:42px;border-radius:50%;border:1px solid #2f678e;background:#0d3451;color:#eaf7ff;font-size:20px;font-weight:900;cursor:pointer;display:grid;place-items:center}'+
+ '.mettin-ai-heading{min-width:0}.mettin-ai-heading strong{display:block;font-size:17px}.mettin-ai-heading span{display:block;color:#8fa9bd;font-size:12px;margin-top:2px}'+
+ '.mettin-ai-thread{flex:1 1 auto;min-height:0;overflow:auto;padding:clamp(16px,3vw,34px) 16px 24px;scroll-behavior:smooth}'+
+ '.mettin-ai-thread-inner{width:min(900px,100%);margin:0 auto;display:flex;flex-direction:column;gap:18px}'+
+ '.mettin-ai-empty{margin:auto;text-align:center;padding:12vh 12px 8vh;color:#a9bfd0}.mettin-ai-empty strong{display:block;color:#edf5fc;font-size:clamp(23px,4vw,34px);margin-bottom:8px}.mettin-ai-empty span{font-size:14px}'+
+ '.mettin-ai-message{max-width:min(900px,94%);padding:14px 17px;border-radius:18px;line-height:1.6;overflow-wrap:anywhere;white-space:normal}.mettin-ai-message.user{align-self:flex-end;background:#123653;border:1px solid #245174}.mettin-ai-message.assistant{align-self:flex-start;background:#0b1b29;border:1px solid #20394e}.mettin-ai-message small{display:block;color:#91abc0;font-size:11px;font-weight:800;margin-bottom:5px}'+
+ '.mettin-ai-bottom{flex:0 0 auto;padding:12px 16px max(14px,env(safe-area-inset-bottom));border-top:1px solid #1b3043;background:#081522}'+
+ '.mettin-ai-compose{width:min(900px,100%);margin:0 auto;display:flex;align-items:flex-end;gap:10px;padding:8px 9px 8px 17px;border:1px solid #35516a;border-radius:25px;background:#0d2030;box-shadow:0 7px 24px #0003}'+
+ '.mettin-ai-input{flex:1;min-width:0;max-height:150px;min-height:27px;resize:none;overflow-y:auto;border:0!important;outline:none!important;box-shadow:none!important;background:transparent!important;color:#edf5fc!important;padding:5px 0!important;font:inherit!important;line-height:1.5!important}'+
+ '.mettin-ai-input::placeholder{color:#89a2b7}.mettin-ai-send{width:40px;height:40px;min-width:40px;border:0;border-radius:50%;background:#0874bd;color:white;font-size:22px;font-weight:900;cursor:pointer}.mettin-ai-send:disabled{opacity:.45;cursor:default}'+
+ '.mettin-ai-status{width:min(900px,100%);margin:6px auto 0;color:#88a1b5;font-size:11px;min-height:15px}'+
+ '.mettin-ai-overlay{position:absolute;inset:0;z-index:30;background:#020812a8;display:flex}.mettin-ai-drawer{width:min(350px,86vw);height:100%;display:flex;flex-direction:column;background:#0a1928;border-right:1px solid #29445a;box-shadow:18px 0 50px #0007;padding:16px;box-sizing:border-box}.mettin-ai-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.mettin-ai-drawer-list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:7px;margin-top:12px}.mettin-ai-history-item{width:100%;text-align:left;white-space:normal;border:1px solid #274055;border-radius:10px;background:#0c2030;color:#dceaf5;padding:11px 12px;cursor:pointer}.mettin-ai-history-item.active{border-color:#1687d0;background:#12334c}'+
+ '@media(max-width:560px){.mettin-ai-top{height:56px;min-height:56px;padding:0 12px}.mettin-ai-thread{padding:14px 11px 18px}.mettin-ai-bottom{padding:9px 10px max(12px,env(safe-area-inset-bottom))}.mettin-ai-compose{padding-left:14px}}'+
+ '</style>'+
+ '<div class="mettin-ai-shell" id="mettinAiShell">'+
+ '<header class="mettin-ai-top"><button type="button" class="mettin-ai-mark" id="mettinAiHistoryToggle" aria-label="Open chat history">M</button><div class="mettin-ai-heading"><strong>'+name+'</strong><span>Metxon guide · Ask your Metxon question</span></div></header>'+
+ '<main class="mettin-ai-thread" id="mettinAiMessages" aria-live="polite"><div class="mettin-ai-thread-inner"><div class="mettin-ai-empty"><strong>Your Metxon question</strong><span>Ask about Metxon, its divisions, devices, apps or services.</span></div></div></main>'+
+ '<footer class="mettin-ai-bottom"><div class="mettin-ai-compose"><textarea class="mettin-ai-input" id="mettinAiInput" rows="1" maxlength="4000" aria-label="Your Metxon question" placeholder="Ask a question about Metxon…"></textarea><button type="button" class="mettin-ai-send" id="mettinAiSend" aria-label="Send question">↑</button></div><div class="mettin-ai-status" id="mettinAiStatus" role="status">Answers use the Metxon Supabase knowledge base.</div></footer>'+
+ '<div class="mettin-ai-overlay" id="mettinAiHistoryOverlay" hidden><div style="position:absolute;inset:0" id="mettinAiHistoryBackdrop"></div><aside class="mettin-ai-drawer" aria-label="Chat history"><div class="mettin-ai-drawer-head"><strong>Your chats</strong><button type="button" class="btn" id="mettinAiHistoryClose" aria-label="Close chat history">✕</button></div><button type="button" class="btn primary" id="mettinAiNewChat">＋ New chat</button><div class="mettin-ai-drawer-list" id="mettinAiChatList"><p class="small muted">Loading chats…</p></div></aside></div>'+
+ '</div>';
+}
+function aiSafeMessageHtml(value){
+ return esc(value).split(String.fromCharCode(10)).join('<br>');
+}
+function renderMettinAiMessages(){
+ const box=$('mettinAiMessages');if(!box)return;
+ const inner='<div class="mettin-ai-thread-inner">';
+ if(!mettinAiChatState.messages.length){
+  box.innerHTML=inner+'<div class="mettin-ai-empty"><strong>Your Metxon question</strong><span>Ask about Metxon, its divisions, devices, apps or services.</span></div></div>';
+  return;
+ }
+ box.innerHTML=inner+mettinAiChatState.messages.map(m=>{
+  const role=m.role==='user'?'user':'assistant';
+  const label=role==='user'?'You':(mettinAiChatState.assistant==='cule_ai'?'Cule AI':'Nebula AI');
+  return '<article class="mettin-ai-message '+role+'"><small>'+label+'</small><div>'+aiSafeMessageHtml(m.content)+'</div></article>';
+ }).join('')+'</div>';
+ box.scrollTop=box.scrollHeight;
+}
+function setMettinAiHistoryOpen(open){
+ const overlay=$('mettinAiHistoryOverlay');if(!overlay)return;
+ overlay.hidden=!open;mettinAiChatState.drawerOpen=!!open;
+}
+async function refreshMettinAiChatList(){
+ const box=$('mettinAiChatList');if(!box)return;
+ if(!profile){box.innerHTML='<p class="small muted">Sign in to save and reopen chat history.</p>';return;}
+ const r=await sb.from('mettin_ai_conversations').select('id,title,updated_at')
+  .eq('owner_id',profile.id).eq('assistant_key',mettinAiChatState.assistant)
+  .order('updated_at',{ascending:false}).limit(60);
+ if(r.error){box.innerHTML='<p class="small" style="color:#ff9e9e">History unavailable: '+esc(r.error.message)+'</p>';return;}
+ const rows=r.data||[];
+ box.innerHTML=rows.map(x=>'<button type="button" class="mettin-ai-history-item'+(x.id===mettinAiChatState.conversationId?' active':'')+'" data-ai-conversation="'+esc(x.id)+'">'+esc(x.title||'New chat')+'</button>').join('')||'<p class="small muted">No saved chats yet.</p>';
+ box.querySelectorAll('[data-ai-conversation]').forEach(b=>b.addEventListener('click',async()=>{
+  try{await openMettinAiConversation(b.dataset.aiConversation);setMettinAiHistoryOpen(false);}
+  catch(e){status('mettinAiStatus',e.message||'Could not open that chat.','error');}
+ }));
+}
+async function createMettinAiConversation(){
+ if(!profile?.id)throw new Error('Sign in to save chat history. You can still ask a Metxon question.');
+ const r=await sb.from('mettin_ai_conversations').insert({
+  owner_id:profile.id,assistant_key:mettinAiChatState.assistant,title:'New chat'
+ }).select('id,title').single();
+ if(r.error)throw new Error('Could not create a chat: '+r.error.message);
+ mettinAiChatState.conversationId=r.data.id;mettinAiChatState.messages=[];
+ renderMettinAiMessages();await refreshMettinAiChatList();
+ return r.data.id;
+}
+async function openMettinAiConversation(id){
+ if(!profile?.id||!id)return;
+ const check=await sb.from('mettin_ai_conversations').select('id')
+  .eq('id',id).eq('owner_id',profile.id).eq('assistant_key',mettinAiChatState.assistant).maybeSingle();
+ if(check.error||!check.data)throw new Error(check.error?.message||'That conversation is unavailable.');
+ const r=await sb.from('mettin_ai_messages').select('id,role,content,created_at')
+  .eq('conversation_id',id).eq('owner_id',profile.id).order('created_at',{ascending:true}).limit(300);
+ if(r.error)throw new Error('Could not load messages: '+r.error.message);
+ mettinAiChatState.conversationId=id;mettinAiChatState.messages=r.data||[];
+ renderMettinAiMessages();await refreshMettinAiChatList();
+}
+async function initMettinAiChat(assistant){
+ mettinAiChatState={assistant,conversationId:null,messages:[],busy:false,drawerOpen:false};
+ const input=$('mettinAiInput'),send=$('mettinAiSend');
+ if(!input||!send){console.error('Metxon assistant composer did not render.');return;}
+ $('mettinAiHistoryToggle').addEventListener('click',async()=>{
+  setMettinAiHistoryOpen(true);await refreshMettinAiChatList();
+ });
+ $('mettinAiHistoryClose').addEventListener('click',()=>setMettinAiHistoryOpen(false));
+ $('mettinAiHistoryBackdrop').addEventListener('click',()=>setMettinAiHistoryOpen(false));
+ $('mettinAiNewChat').addEventListener('click',async()=>{
+  try{
+   await createMettinAiConversation();setMettinAiHistoryOpen(false);
+   status('mettinAiStatus','New chat ready.');input.focus();
+  }catch(e){status('mettinAiStatus',e.message||'Could not create a chat.','error');}
+ });
+ send.addEventListener('click',sendMettinAiMessage);
+ input.addEventListener('input',()=>{
+  input.style.height='27px';input.style.height=Math.min(input.scrollHeight,150)+'px';
+ });
+ input.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMettinAiMessage();}
+  if(e.key==='Escape'&&mettinAiChatState.drawerOpen)setMettinAiHistoryOpen(false);
+ });
+ renderMettinAiMessages();
+ if(!profile?.id){status('mettinAiStatus','You can ask questions now. Sign in to save chat history.');return;}
+ await refreshMettinAiChatList();
+ const recent=await sb.from('mettin_ai_conversations').select('id')
+  .eq('owner_id',profile.id).eq('assistant_key',assistant)
+  .order('updated_at',{ascending:false}).limit(1);
+ if(recent.error){status('mettinAiStatus','Chat history could not be loaded: '+recent.error.message,'error');return;}
+ if(recent.data?.[0]){
+  try{await openMettinAiConversation(recent.data[0].id);}
+  catch(e){status('mettinAiStatus',e.message||'Could not open the last chat.','error');}
+ }
+}
+async function sendMettinAiMessage(){
+ if(mettinAiChatState.busy)return;
+ const input=$('mettinAiInput'),question=input?.value.trim();
+ if(!question)return;
+ mettinAiChatState.busy=true;
+ const send=$('mettinAiSend');if(send)send.disabled=true;
+ const priorText=input.value;input.disabled=true;
+ try{
+  if(profile?.id&&!mettinAiChatState.conversationId)await createMettinAiConversation();
+  let userMessage={role:'user',content:question,created_at:new Date().toISOString()};
+  if(profile?.id){
+   const userInsert=await sb.from('mettin_ai_messages').insert({
+    conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'user',content:question
+   }).select('id,role,content,created_at').single();
+   if(userInsert.error)throw new Error('Could not save your question: '+userInsert.error.message);
+   userMessage=userInsert.data;
+  }
+  mettinAiChatState.messages.push(userMessage);renderMettinAiMessages();input.value='';input.style.height='27px';
+  status('mettinAiStatus','Finding the answer in the Metxon knowledge base…');
+  const history=mettinAiChatState.messages.slice(-14,-1).map(m=>({role:m.role,content:m.content}));
+  const response=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
+  if(response.error)throw new Error('Metxon search request failed: '+(response.error.message||'Supabase function error'));
+  if(!response.data||response.data.error)throw new Error(response.data?.error||'No answer was returned.');
+  let content=String(response.data.answer||'').trim();
+  if(!content)throw new Error('The Metxon knowledge search returned an empty answer.');
+  if(!content.startsWith('Here is the answer:'))content='Here is the answer:\\n\\n'+content;
+  if(!content.endsWith('Ask me more questions about Metxon.'))content+='\\n\\nAsk me more questions about Metxon.';
+  if(profile?.id){
+   const saved=await sb.from('mettin_ai_messages').insert({
+    conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'assistant',content
+   }).select('id,role,content,created_at').single();
+   if(saved.error)throw new Error('The answer arrived but could not be saved: '+saved.error.message);
+   mettinAiChatState.messages.push(saved.data);
+   const title=question.length>64?question.slice(0,61)+'…':question;
+   const updated=await sb.from('mettin_ai_conversations').update({title,updated_at:new Date().toISOString()})
+    .eq('id',mettinAiChatState.conversationId).eq('owner_id',profile.id);
+   if(updated.error)throw new Error('Answer arrived, but the chat title could not be updated: '+updated.error.message);
+   await refreshMettinAiChatList();
+  }else{
+   mettinAiChatState.messages.push({role:'assistant',content,created_at:new Date().toISOString()});
+  }
+  renderMettinAiMessages();status('mettinAiStatus','Answer ready. Ask another Metxon question.');
+ }catch(e){
+  status('mettinAiStatus',e.message||'The assistant could not respond. Please try again.','error');
+  input.value=priorText;
+ }finally{
+  mettinAiChatState.busy=false;input.disabled=false;if(send)send.disabled=false;input.focus();
+ }
+}
+
 async function sendMetAlkMessage(){
   const u=$('alkRecipient').value.trim().toLowerCase(),m=$('alkMessage').value.trim(),file=$('alkPhoto')?.files?.[0]||null;
   if(!u||(!m&&!file))return status('alkStatus','Enter a recipient and a message or photo.','error');
