@@ -327,7 +327,40 @@ async function exportProjectAsApp(){
   await loadStore();await launchCustomApp(r.data.id);
  }catch(e){status('devStatus',e.message||'Export failed.','error');}
 }
-async function askDevelopAI(){const question='Help me develop or debug this Mettin project. Suggest next steps without claiming unexecuted code has run.\nProject: '+$('projectName').value+'\nSource:\n'+$('devCode').value.slice(0,12000);$('devOutput').textContent='Contacting Metxon AI…';try{const r=await sb.functions.invoke('metxon-ai',{body:{mode:'nebula',question:question,context:[{name:'Mettin Develop'}]}});if(r.error)throw r.error;if(!r.data||r.data.error)throw new Error(r.data&&r.data.error?r.data.error:'No AI response.');$('devOutput').textContent=r.data.answer||r.data.text||r.data.response||JSON.stringify(r.data,null,2);}catch(e){$('devOutput').textContent='Develop AI unavailable: '+(e.message||'Unknown error');}}
+async function askDevelopAI(){
+ const code=$('devCode').value||'';
+ const lang=$('devLanguage').value||'javascript';
+ const project=$('projectName').value.trim()||'Untitled project';
+ if(!code.trim()){$('devOutput').textContent='Add some source code first, then run the local review.';return;}
+ const findings=[];
+ const lineCount=code.split(/\r?\n/).length;
+ if(lang==='javascript'){
+  try{new Function(code);findings.push('JavaScript syntax check passed.');}
+  catch(e){findings.push('JavaScript syntax error: '+String(e.message||e));}
+  if(/\bfetch\s*\(|XMLHttpRequest|WebSocket\s*\(/.test(code))findings.push('This source makes network requests. Review the destination and ensure it does not expose private data.');
+  if(/localStorage|sessionStorage/.test(code))findings.push('This source uses browser storage. Browser storage is device/browser-specific; use the Mettin Supabase backend for signed-in, cross-device app data.');
+  if(/service_role|SUPABASE_SECRET_KEYS|sk-[A-Za-z0-9]{16,}|Bearer\s+[A-Za-z0-9._-]{24,}/i.test(code))findings.push('Potential secret or privileged credential pattern detected. Remove secrets from client-side code and rotate any real exposed credential.');
+  if(/innerHTML\s*=/.test(code))findings.push('Review any user-provided text assigned to innerHTML. Escape untrusted text or use textContent.');
+  if(/addEventListener\s*\(/.test(code))findings.push('Event listeners detected. Test keyboard, touch and repeated-launch behaviour.');
+ }else if(lang==='html'){
+  const scripts=[...code.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+  for(let i=0;i<scripts.length;i++){
+   try{new Function(scripts[i][1]);findings.push('Embedded script '+(i+1)+' syntax check passed.');}
+   catch(e){findings.push('Embedded script '+(i+1)+' syntax error: '+String(e.message||e));}
+  }
+  if(/<script\b/i.test(code)&&!scripts.length)findings.push('A script tag appears to be missing its closing tag.');
+  if(!/<!doctype\s+html/i.test(code))findings.push('Add <!doctype html> at the start for standards-mode rendering.');
+  if(!/<meta\s+name=["']viewport["']/i.test(code))findings.push('Add a viewport meta tag for mobile sizing.');
+  if(/<img\b(?![^>]*\balt=)[^>]*>/i.test(code))findings.push('Some images may be missing alt text.');
+  if(/service_role|SUPABASE_SECRET_KEYS|sk-[A-Za-z0-9]{16,}|Bearer\s+[A-Za-z0-9._-]{24,}/i.test(code))findings.push('Potential secret or privileged credential pattern detected. Remove it from published client code and rotate any real exposed credential.');
+ }else{
+  findings.push('The current in-browser reviewer supports HTML and JavaScript source only.');
+ }
+ const header='Local MetDevelop review — '+project+'\n'+lineCount+' lines · '+code.length+' characters · '+lang.toUpperCase()+'\n\n';
+ const body=findings.length?findings.map((x,i)=>(i+1)+'. '+x).join('\n'):'No common issues were detected by the local checks.';
+ const footer='\n\nThis review runs locally in your browser. It does not call OpenAI or another AI API and cannot prove runtime behaviour.\nFor persistent signed-in app data across visits and devices, use the Need backend? option when publishing.';
+ $('devOutput').textContent=header+body+footer;
+}
 function previewCreatedApp(){$('createdAppPreview').srcdoc=buildAppDocument($('newAppCode').value,$('newAppLanguage').value,'');status('createAppStatus','Preview refreshed. Supabase backend activates after publishing with a plan.');}
 function updateBackendPlanUI(){
  const enabled=$('newAppNeedBackend').checked;
