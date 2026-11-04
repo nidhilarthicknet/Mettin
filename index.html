@@ -1983,15 +1983,7 @@ async function sendMettinAiMessage(){
  const send=$('mettinAiSend');if(send)send.disabled=true;
  const priorText=input.value;input.disabled=true;
  try{
-  if(profile?.id&&!mettinAiChatState.conversationId)await createMettinAiConversation();
   let userMessage={role:'user',content:question,created_at:new Date().toISOString()};
-  if(profile?.id){
-   const userInsert=await sb.from('mettin_ai_messages').insert({
-    conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'user',content:question
-   }).select('id,role,content,created_at').single();
-   if(userInsert.error)throw new Error('Could not save your question: '+userInsert.error.message);
-   userMessage=userInsert.data;
-  }
   mettinAiChatState.messages.push(userMessage);renderMettinAiMessages();input.value='';input.style.height='27px';
   status('mettinAiStatus','Finding the answer in the Metxon knowledge base…');
   const history=mettinAiChatState.messages.slice(-14,-1).map(m=>({role:m.role,content:m.content}));
@@ -2018,7 +2010,7 @@ async function sendMettinAiMessage(){
   }
   renderMettinAiMessages();status('mettinAiStatus','Answer ready. Ask another Metxon question.');
  }catch(e){
-  status('mettinAiStatus',e.message||'The assistant could not respond. Please try again.','error');
+  status('mettinAiStatus','Could not get an answer: '+(e.message||'Please try again.'),'error');
   input.value=priorText;
  }finally{
   mettinAiChatState.busy=false;input.disabled=false;if(send)send.disabled=false;input.focus();
