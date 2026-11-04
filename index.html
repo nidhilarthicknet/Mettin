@@ -1994,21 +1994,29 @@ async function sendMettinAiMessage(){
   if(!content)throw new Error('The Metxon knowledge search returned an empty answer.');
   if(!content.startsWith('Here is the answer:'))content='Here is the answer:\\n\\n'+content;
   if(!content.endsWith('Ask me more questions about Metxon.'))content+='\\n\\nAsk me more questions about Metxon.';
-  if(profile?.id){
-   const saved=await sb.from('mettin_ai_messages').insert({
-    conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'assistant',content
-   }).select('id,role,content,created_at').single();
-   if(saved.error)throw new Error('The answer arrived but could not be saved: '+saved.error.message);
-   mettinAiChatState.messages.push(saved.data);
-   const title=question.length>64?question.slice(0,61)+'…':question;
-   const updated=await sb.from('mettin_ai_conversations').update({title,updated_at:new Date().toISOString()})
-    .eq('id',mettinAiChatState.conversationId).eq('owner_id',profile.id);
-   if(updated.error)throw new Error('Answer arrived, but the chat title could not be updated: '+updated.error.message);
-   await refreshMettinAiChatList();
-  }else{
-   mettinAiChatState.messages.push({role:'assistant',content,created_at:new Date().toISOString()});
-  }
+  mettinAiChatState.messages.push({role:'assistant',content,created_at:new Date().toISOString()});
   renderMettinAiMessages();status('mettinAiStatus','Answer ready. Ask another Metxon question.');
+  if(profile?.id){
+   try{
+    if(!mettinAiChatState.conversationId){
+     const created=await sb.from('mettin_ai_conversations').insert({
+      owner_id:profile.id,assistant_key:mettinAiChatState.assistant,
+      title:question.length>64?question.slice(0,61)+'…':question
+     }).select('id').single();
+     if(created.error)throw created.error;
+     mettinAiChatState.conversationId=created.data.id;
+    }
+    const saved=await sb.from('mettin_ai_messages').insert([
+     {conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'user',content:question},
+     {conversation_id:mettinAiChatState.conversationId,owner_id:profile.id,role:'assistant',content}
+    ]);
+    if(saved.error)throw saved.error;
+    await refreshMettinAiChatList();
+   }catch(historyError){
+    console.warn('Answer was delivered, but chat history was not saved:',historyError);
+    status('mettinAiStatus','Answer ready. History could not be saved: '+(historyError.message||'database issue'),'error');
+   }
+  }
  }catch(e){
   status('mettinAiStatus','Could not get an answer: '+(e.message||'Please try again.'),'error');
   input.value=priorText;
