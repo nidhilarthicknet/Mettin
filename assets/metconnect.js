@@ -183,5 +183,6 @@ const p=await sb.from('metconnect_calls').select('id,caller_id,callee_id,call_mo
 };
 window.launchMetConnectApp=openApp;window.metconnectShutdown=shutdown;window.openMetConnect=function(){window.location.href='https://nidhilarthicknet.github.io/Mettin/?openApp=metconnect';};
 window.addEventListener('beforeunload',()=>{if(MC.peer)MC.peer.close();});
+window.dispatchEvent(new Event('metconnect-ready'));
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initBackground,{once:true});else initBackground();
 })();
