@@ -2065,13 +2065,14 @@ async function loadMetAlkHistory(){
   }).join('')||'<div class="empty">No messages yet.</div>';
 }
 async function loadMetPay(){if(!profile)return;$('payWallet').textContent=moneyJp(profile.jp_balance);$('payUser').textContent=profile.username||'—';const s=await rpc('metpay_password_status',{p_username:profile.username});$('payPassState').textContent=s.has_password?'Set':'Not set';$('metpaySetupForm').classList.toggle('hidden',!!s.has_password);$('metpayHelp').textContent=s.has_password?'Shared MetPay password is ready.':'Create a MetPay password before buying apps or sending JP.';const c=await sb.rpc('metpay_get_contacts_with_usernames');$('contactsList').innerHTML=c.error?'<div class="empty">Contacts unavailable.</div>':(c.data||[]).map(x=>'<div class="list-item"><strong>'+esc(x.username||x.display_name||'Metxon user')+'</strong><small>Saved contact · '+esc(fmtDate(x.created_at))+'</small></div>').join('')||'<div class="empty">No saved contacts.</div>';const t=await sb.from('metxon_jp_transactions').select('amount,transaction_type,note,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(12);$('payHistory').innerHTML=t.error?'<div class="empty">History unavailable.</div>':(t.data||[]).map(x=>'<div class="list-item"><div class="split"><strong>'+esc(x.transaction_type)+'</strong><small>'+esc(fmtDate(x.created_at))+'</small></div><div>'+esc(x.note)+'</div><strong class="price">'+(Number(x.amount)>=0?'+':'')+esc(moneyJp(x.amount))+'</strong></div>').join('')||'<div class="empty">No payments yet.</div>';}
-$('metpaySetupForm').addEventListener('submit',async e=>{
- e.preventDefault();e.stopPropagation();
+let metPaySetupBusy=false;
+async function submitMetPaySetup(){
+ if(metPaySetupBusy)return;
  const button=$('createMetpayPasswordBtn'),password=$('newMetpayPassword').value,confirmation=$('confirmMetpayPassword').value;
- if(!profile||!profile.id)return status('metpaySetupStatus','Your Metxon session is not ready. Please sign in again.','error');
- if(password.length<8||password.length>128)return status('metpaySetupStatus','Use 8–128 characters for your MetPay password.','error');
- if(password!==confirmation)return status('metpaySetupStatus','The two MetPay passwords do not match.','error');
- if(button)button.disabled=true;
+ if(!profile||!profile.id){status('metpaySetupStatus','Your Metxon session is not ready. Please sign in again.','error');return;}
+ if(password.length<8||password.length>128){status('metpaySetupStatus','Use 8–128 characters for your MetPay password.','error');return;}
+ if(password!==confirmation){status('metpaySetupStatus','The two MetPay passwords do not match.','error');return;}
+ metPaySetupBusy=true;if(button)button.disabled=true;
  status('metpaySetupStatus','Saving and verifying your MetPay password…');
  try{
   const before=await sb.auth.getSession();
@@ -2090,8 +2091,10 @@ $('metpaySetupForm').addEventListener('submit',async e=>{
  }catch(err){
   console.error('MetPay password setup:',err);
   status('metpaySetupStatus',err.message||'MetPay password setup failed. Your account has not been signed out.','error');
- }finally{if(button)button.disabled=false;}
-});
+ }finally{metPaySetupBusy=false;if(button)button.disabled=false;}
+}
+$('metpaySetupForm').addEventListener('submit',e=>{e.preventDefault();e.stopPropagation();submitMetPaySetup();});
+$('createMetpayPasswordBtn').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();submitMetPaySetup();});
 $('contactForm').addEventListener('submit',async e=>{e.preventDefault();try{await rpc('metpay_add_contact',{p_username:$('contactUsername').value.trim()});$('contactUsername').value='';status('contactStatus','Contact added.','success');await loadMetPay();}catch(err){status('contactStatus',err.message||'Could not add contact.','error');}});
 $('transferForm').addEventListener('submit',async e=>{e.preventDefault();const u=$('recipientUsername').value.trim(),a=Number($('transferAmount').value),p=$('transferPassword').value;if(!u||!Number.isFinite(a)||a<=0)return status('transferStatus','Enter recipient and amount.','error');const request=window.__mettinPendingAppPaymentRequest;const requestMatches=request&&request.recipient.toLowerCase()===u.toLowerCase()&&Number(request.amount)===a;const confirmText=requestMatches?'The app "'+request.appName+'" requested '+moneyJp(a)+' to '+u+(request.description?' for '+request.description:'')+'. Confirm this transfer?':'Send '+moneyJp(a)+' to '+u+'? This transfer cannot be undone.';if(!confirm(confirmText))return;try{const r=await rpc('mettin_metpay_transfer',{p_recipient_username:u,p_amount_jp:a,p_metpay_password:p});window.__mettinPendingAppPaymentRequest=null;$('transferPassword').value='';$('transferAmount').value='';status('transferStatus','Sent '+moneyJp(r.amount_jp)+' to '+r.recipient+'.','success');await getProfile();await refreshOverview();await loadMetPay();}catch(err){status('transferStatus',err.message||'MetPay transfer failed.','error');}});
 $('careTicketForm').addEventListener('submit',async e=>{e.preventDefault();const subject=$('careSubject').value.trim(),message=$('careMessage').value.trim(),file=$('careTicketPhoto')?.files?.[0]||null;if(!subject||!message)return status('careTicketStatus','Add a subject and details.','error');if(file&&(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024))return status('careTicketStatus','Choose a JPG, PNG or WebP image up to 5 MB.','error');const btn=$('careTicketForm').querySelector('button[type="submit"]');btn.disabled=true;try{const r=await rpc('metxon_create_care_ticket',{p_subject:subject,p_message:message}),ticketId=r.ticket_id;if(!ticketId)throw new Error('Support ticket was not confirmed.');if(file){const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg',path=profile.id+'/'+ticketId+'/'+crypto.randomUUID()+'.'+ext;const up=await sb.storage.from('metxon-care-attachments').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});if(up.error)throw new Error('Ticket '+String(ticketId).slice(0,8)+' was created, but the photo upload failed: '+up.error.message);const saved=await sb.from('metxon_care_tickets').update({attachment_paths:[path]}).eq('id',ticketId).eq('user_id',profile.id);if(saved.error){await sb.storage.from('metxon-care-attachments').remove([path]);throw new Error('Ticket created, but its photo could not be linked: '+saved.error.message);}}$('careTicketForm').reset();status('careTicketStatus','Support request sent. Ticket '+String(ticketId).slice(0,8)+(file?' with private photo.':'.'),'success');await loadCareTickets();}catch(err){status('careTicketStatus',err.message||'Could not send support request.','error');}finally{btn.disabled=false;}});
