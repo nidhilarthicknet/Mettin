@@ -106,9 +106,9 @@ let metxonHomeTimer=null;
 const esc=v=>String(v===null||v===undefined?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const APPS=[
  {id:'met_develop',name:'MetDevelop',price:20000,desc:'Development workspace, MetLang/Atbash, SME development and cloud saving.',icon:'⌘'},
- {id:'cule_in',name:'Cule-In',price:1000,desc:'Hardcoded Metxon knowledge search from Supabase. No OpenAI calls.',icon:'⌕'},
- {id:'cule_ai',name:'Cule AI',price:0,desc:'Hardcoded Metxon knowledge chat with new chats and saved history. No external AI API.',icon:'✦'},
- {id:'nebula_ai',name:'Nebula AI',price:10000,desc:'Hardcoded Metxon knowledge chat with new chats and saved private history. No external AI API.',icon:'✦'},
+ {id:'cule_in',name:'Cule-In',price:1000,desc:'Conversational AI search for Metxon and general knowledge.',icon:'⌕'},
+ {id:'cule_ai',name:'Cule AI',price:0,desc:'General conversational AI with new chats and saved history.',icon:'✦'},
+ {id:'nebula_ai',name:'Nebula AI',price:10000,desc:'Advanced conversational AI with new chats and saved private history.',icon:'✦'},
  {id:'met_alk',name:'Met-Alk',price:15000,desc:'Username-based messaging, friends and cloud chat.',icon:'↔'},
  {id:'block_breaker',name:'Block Breaker',price:500,desc:'Arcade brick breaker with levels, touch and keyboard controls.',icon:'▦'},
  {id:'football',name:'Football',price:200,desc:'One-player football challenge.',icon:'⚽'},
@@ -1816,7 +1816,7 @@ function launchApp(id){
   if(id==='football')return launchFootballApp();
   if(id==='chess_boys')return launchChessBoysApp();
   if(id==='cule_in'){
-    const body='<div style="width:100%;height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;padding:clamp(18px,5vw,50px);box-sizing:border-box"><div style="width:min(900px,100%);margin:auto"><div style="text-align:center;margin-bottom:22px"><div style="font-size:clamp(29px,5vw,42px);font-weight:850;letter-spacing:-1.5px">Cule-In</div><p class="muted" style="margin-top:6px">Metxon knowledge search</p></div><form id="culeInForm" style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:999px;padding:8px 10px 8px 20px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="culeSearchBox" type="search" maxlength="1200" placeholder="Your Metxon question…" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" id="culeSearchButton" type="submit" style="border-radius:999px;padding:11px 22px">Search</button></form><div id="culeInStatus" class="status" aria-live="polite" style="margin:12px 8px"></div><div id="culeInAnswer" aria-live="polite" style="white-space:pre-wrap;line-height:1.65;font-size:1.04rem;min-height:0;margin:24px 4px"></div></div></div>';
+    const body='<div style="width:100%;height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;padding:clamp(18px,5vw,50px);box-sizing:border-box"><div style="width:min(900px,100%);margin:auto"><div style="text-align:center;margin-bottom:22px"><div style="font-size:clamp(29px,5vw,42px);font-weight:850;letter-spacing:-1.5px">Cule-In</div><p class="muted" style="margin-top:6px">Metxon knowledge + general learning</p></div><form id="culeInForm" style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:999px;padding:8px 10px 8px 20px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="culeSearchBox" type="search" maxlength="1200" placeholder="Ask anything — Metxon, maths, English, science…" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" id="culeSearchButton" type="submit" style="border-radius:999px;padding:11px 22px">Ask</button></form><div id="culeInStatus" class="status" aria-live="polite" style="margin:12px 8px"></div><div id="culeInAnswer" aria-live="polite" style="white-space:pre-wrap;line-height:1.65;font-size:1.04rem;min-height:0;margin:24px 4px"></div></div></div>';
     renderLocalApp(a,body);
     $('culeInForm').addEventListener('submit',e=>{e.preventDefault();searchCuleIn();});
     return;
@@ -1838,22 +1838,27 @@ function launchApp(id){
   return renderLocalApp(a,'<div class="card"><h2>'+esc(a.name)+'</h2><p>'+esc(a.desc)+'</p><p>This app is running inside Mettin; no redirect to the Metxon corporate homepage is used.</p></div>');
 }
 
+let culeInHistory=[];
 async function searchCuleIn(){
  const question=$('culeSearchBox')?.value.trim();
- if(!question)return status('culeInStatus','Type a Metxon question first.','error');
+ if(!question)return status('culeInStatus','Type a question first.','error');
  const button=$('culeSearchButton'),output=$('culeInAnswer');
  if(button)button.disabled=true;
  if(output)output.textContent='';
- status('culeInStatus','Searching Metxon knowledge…');
+ status('culeInStatus','Thinking…');
  try{
-  const r=await sb.functions.invoke('cule-in-search',{body:{question}});
-  if(r.error)throw new Error(r.error.message||'Supabase search failed.');
+  const history=culeInHistory.slice(-10);
+  const r=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:'cule_in'}});
+  if(r.error)throw new Error(r.error.message||'Assistant request failed.');
   if(!r.data||r.data.error)throw new Error(r.data?.error||'No answer was returned.');
-  if(output)output.textContent=String(r.data.answer||'No matching Metxon information was found.');
+  const answer=String(r.data.answer||'I could not produce an answer for that question.').trim();
+  if(output)output.textContent=answer;
+  culeInHistory.push({role:'user',content:question},{role:'assistant',content:answer});
+  culeInHistory=culeInHistory.slice(-10);
   status('culeInStatus','Answer ready.');
  }catch(e){
-  if(output)output.textContent='Metxon search is temporarily unavailable. '+(e.message||'Please try again.');
-  status('culeInStatus','Search failed.','error');
+  if(output)output.textContent='The assistant is temporarily unavailable. '+(e.message||'Please try again.');
+  status('culeInStatus','Request failed.','error');
  }finally{if(button)button.disabled=false;}
 }
 
@@ -1878,9 +1883,9 @@ function mettinAiChatMarkup(assistant){
  '@media(max-width:560px){.mettin-ai-top{height:56px;min-height:56px;padding:0 12px}.mettin-ai-thread{padding:14px 11px 18px}.mettin-ai-bottom{padding:9px 10px max(12px,env(safe-area-inset-bottom))}.mettin-ai-compose{padding-left:14px}}'+
  '</style>'+
  '<div class="mettin-ai-shell" id="mettinAiShell">'+
- '<header class="mettin-ai-top"><button type="button" class="mettin-ai-mark" id="mettinAiHistoryToggle" aria-label="Open chat history">M</button><div class="mettin-ai-heading"><strong>'+name+'</strong><span>Metxon guide · Ask your Metxon question</span></div></header>'+
- '<main class="mettin-ai-thread" id="mettinAiMessages" aria-live="polite"><div class="mettin-ai-thread-inner"><div class="mettin-ai-empty"><strong>Your Metxon question</strong><span>Ask about Metxon, its divisions, devices, apps or services.</span></div></div></main>'+
- '<footer class="mettin-ai-bottom"><div class="mettin-ai-compose"><textarea class="mettin-ai-input" id="mettinAiInput" rows="1" maxlength="4000" aria-label="Your Metxon question" placeholder="Ask a question about Metxon…"></textarea><button type="button" class="mettin-ai-send" id="mettinAiSend" aria-label="Send question">↑</button></div><div class="mettin-ai-status" id="mettinAiStatus" role="status">Answers use the Metxon Supabase knowledge base.</div></footer>'+
+ '<header class="mettin-ai-top"><button type="button" class="mettin-ai-mark" id="mettinAiHistoryToggle" aria-label="Open chat history">M</button><div class="mettin-ai-heading"><strong>'+name+'</strong><span>General AI · Metxon knowledge, schoolwork and everyday questions</span></div></header>'+
+ '<main class="mettin-ai-thread" id="mettinAiMessages" aria-live="polite"><div class="mettin-ai-thread-inner"><div class="mettin-ai-empty"><strong>What would you like to ask?</strong><span>Metxon, maths, English, science, social studies, technology, and more.</span></div></div></main>'+
+ '<footer class="mettin-ai-bottom"><div class="mettin-ai-compose"><textarea class="mettin-ai-input" id="mettinAiInput" rows="1" maxlength="4000" aria-label="Your message" placeholder="Message Cule AI or Nebula AI…"></textarea><button type="button" class="mettin-ai-send" id="mettinAiSend" aria-label="Send question">↑</button></div><div class="mettin-ai-status" id="mettinAiStatus" role="status">Answers combine general AI knowledge with verified Metxon information.</div></footer>'+
  '<div class="mettin-ai-overlay" id="mettinAiHistoryOverlay" hidden><div style="position:absolute;inset:0" id="mettinAiHistoryBackdrop"></div><aside class="mettin-ai-drawer" aria-label="Chat history"><div class="mettin-ai-drawer-head"><strong>Your chats</strong><button type="button" class="btn" id="mettinAiHistoryClose" aria-label="Close chat history">✕</button></div><button type="button" class="btn primary" id="mettinAiNewChat">＋ New chat</button><div class="mettin-ai-drawer-list" id="mettinAiChatList"><p class="small muted">Loading chats…</p></div></aside></div>'+
  '</div>';
 }
@@ -1985,17 +1990,15 @@ async function sendMettinAiMessage(){
  try{
   let userMessage={role:'user',content:question,created_at:new Date().toISOString()};
   mettinAiChatState.messages.push(userMessage);renderMettinAiMessages();input.value='';input.style.height='27px';
-  status('mettinAiStatus','Finding the answer in the Metxon knowledge base…');
+  status('mettinAiStatus','Thinking…');
   const history=mettinAiChatState.messages.slice(-14,-1).map(m=>({role:m.role,content:m.content}));
   const response=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
-  if(response.error)throw new Error('Metxon search request failed: '+(response.error.message||'Supabase function error'));
+  if(response.error)throw new Error('AI request failed: '+(response.error.message||'Supabase function error'));
   if(!response.data||response.data.error)throw new Error(response.data?.error||'No answer was returned.');
   let content=String(response.data.answer||'').trim();
-  if(!content)throw new Error('The Metxon knowledge search returned an empty answer.');
-  if(!content.startsWith('Here is the answer:'))content='Here is the answer:\\n\\n'+content;
-  if(!content.endsWith('Ask me more questions about Metxon.'))content+='\\n\\nAsk me more questions about Metxon.';
+  if(!content)throw new Error('The assistant returned an empty answer.');
   mettinAiChatState.messages.push({role:'assistant',content,created_at:new Date().toISOString()});
-  renderMettinAiMessages();status('mettinAiStatus','Answer ready. Ask another Metxon question.');
+  renderMettinAiMessages();status('mettinAiStatus','Answer ready.');
   if(profile?.id){
    try{
     if(!mettinAiChatState.conversationId){
