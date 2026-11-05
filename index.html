@@ -1874,7 +1874,7 @@ async function searchCuleIn(){
  try{
   const history=culeInHistory.slice(-10);
   const r=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:'cule_in'}});
-  if(r.error)throw new Error(r.error.message||'Assistant request failed.');
+  if(r.error)throw new Error(await mettinAiErrorMessage(r.error));
   if(!r.data||r.data.error)throw new Error(r.data?.error||'No answer was returned.');
   const answer=String(r.data.answer||'I could not produce an answer for that question.').trim();
   if(output)output.textContent=answer;
@@ -2005,6 +2005,17 @@ async function initMettinAiChat(assistant){
   catch(e){status('mettinAiStatus',e.message||'Could not open the last chat.','error');}
  }
 }
+async function mettinAiErrorMessage(error){
+ const context=error?.context;
+ if(context&&typeof context.clone==='function'){
+  try{
+   const response=context.clone();
+   const payload=await response.json();
+   if(payload&&typeof payload.error==='string'&&payload.error.trim())return payload.error.trim();
+  }catch(e){}
+ }
+ return error?.message||'The AI service is temporarily unavailable. Please try again.';
+}
 async function sendMettinAiMessage(){
  if(mettinAiChatState.busy)return;
  const input=$('mettinAiInput'),question=input?.value.trim();
@@ -2018,7 +2029,7 @@ async function sendMettinAiMessage(){
   status('mettinAiStatus','Thinking…');
   const history=mettinAiChatState.messages.slice(-14,-1).map(m=>({role:m.role,content:m.content}));
   const response=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
-  if(response.error)throw new Error('AI request failed: '+(response.error.message||'Supabase function error'));
+  if(response.error)throw new Error(await mettinAiErrorMessage(response.error));
   if(!response.data||response.data.error)throw new Error(response.data?.error||'No answer was returned.');
   let content=String(response.data.answer||'').trim();
   if(!content)throw new Error('The assistant returned an empty answer.');
