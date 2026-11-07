@@ -20,6 +20,12 @@ el.innerHTML='<section class="mc-modalwrap mc-hidden" id="mc-incoming" aria-live
 document.body.appendChild(el);
 document.getElementById('mc-answer').onclick=answerIncoming;document.getElementById('mc-decline').onclick=declineIncoming;document.getElementById('mc-end').onclick=endCall;document.getElementById('mc-mute').onclick=toggleMic;document.getElementById('mc-camera-toggle').onclick=toggleCam;document.getElementById('mc-hold').onclick=toggleHold;document.getElementById('mc-share-screen').onclick=shareScreen;
 }
+function metconnectDisplayCapture(){
+ if(!window.isSecureContext)throw Error('Screen sharing requires the secure HTTPS version of Mettin. Open https://nidhilarthicknet.github.io/Mettin/.');
+ const capture=navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices)||navigator.getDisplayMedia?.bind(navigator);
+ if(!capture)throw Error('Your current browser does not provide screen capture. MetConnect screen sharing works in supported desktop browsers over HTTPS; Chrome on Android does not expose the browser screen-capture API. Open MetConnect on a desktop browser to share a screen.');
+ return capture;
+}
 function audioContext(){if(!MC.audio){const C=window.AudioContext||window.webkitAudioContext;if(C)MC.audio=new C();}return MC.audio;}
 function notificationPermissionLabel(){
  if(!('Notification' in window))return 'Unavailable in this browser';
@@ -158,12 +164,7 @@ pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected'){stopOutgoin
 async function startCall(mode){
 if(MC.busy||MC.active||MC.incoming)return;const c=person(MC.selected);if(!c)return status('Choose a saved username.',true);MC.busy=true;let local=null,screen=null;
 try{
-let screenPromise=null;if(mode==='screen'){
- if(!window.isSecureContext)throw Error('Screen sharing requires the secure HTTPS version of Mettin. Open https://nidhilarthicknet.github.io/Mettin/.');
- const capture=navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices)||navigator.getDisplayMedia?.bind(navigator);
- if(!capture)throw Error('Your current browser does not provide screen capture. MetConnect screen sharing works in supported desktop browsers over HTTPS; Chrome on Android does not expose the browser screen-capture API. Open MetConnect on a desktop browser to share a screen.');
- screenPromise=capture({video:true,audio:false});
-}
+let screenPromise=null;if(mode==='screen'){screenPromise=metconnectDisplayCapture()({video:true,audio:false});}
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
 const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:true,video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
 local.getTracks().forEach(t=>pc.addTrack(t,local));if(screen)screen.getTracks().forEach(t=>pc.addTrack(t,screen));
@@ -237,7 +238,7 @@ function toggleCam(){if(!MC.local)return;const tracks=MC.local.getVideoTracks();
 async function toggleHold(){if(!MC.active||!MC.local)return;MC.held=!MC.held;MC.local.getTracks().forEach(t=>t.enabled=!MC.held);if(MC.screen)MC.screen.getTracks().forEach(t=>t.enabled=!MC.held);const output=document.getElementById('mc-remote-audio');if(output)output.muted=MC.held;document.getElementById('mc-hold').textContent=MC.held?'Resume':'Hold';setStageStatus(MC.held?'You put the call on hold.':'Call resumed.');const r=await signal(MC.active.id,MC.held?'hold':'resume',{});if(r.error)console.warn(r.error);}
 async function shareScreen(){
 if(!MC.active||!MC.peer)return;
-try{if(!navigator.mediaDevices?.getDisplayMedia)throw Error('Screen sharing is not supported.');const s=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:15},audio:false});MC.screen=s;s.getTracks().forEach(t=>MC.peer.addTrack(t,s));const offer=await MC.peer.createOffer();await MC.peer.setLocalDescription(offer);const r=await signal(MC.active.id,'renegotiate_offer',{type:MC.peer.localDescription.type,sdp:MC.peer.localDescription.sdp});if(r.error)throw r.error;setStageStatus('You are sharing your screen. Stop sharing with the browser control.');s.getVideoTracks().forEach(t=>t.onended=()=>setStageStatus('Screen sharing stopped.'));showStage();}
+try{const s=await metconnectDisplayCapture()({video:true,audio:false});MC.screen=s;s.getTracks().forEach(t=>MC.peer.addTrack(t,s));const offer=await MC.peer.createOffer();await MC.peer.setLocalDescription(offer);const r=await signal(MC.active.id,'renegotiate_offer',{type:MC.peer.localDescription.type,sdp:MC.peer.localDescription.sdp});if(r.error)throw r.error;setStageStatus('You are sharing your screen. Stop sharing with the browser control.');s.getVideoTracks().forEach(t=>t.onended=()=>setStageStatus('Screen sharing stopped.'));showStage();}
 catch(e){setStageStatus(e.message||'Screen sharing cancelled.');}
 }
 function bind(){
