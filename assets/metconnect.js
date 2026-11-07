@@ -242,7 +242,7 @@ try{if(!navigator.mediaDevices?.getDisplayMedia)throw Error('Screen sharing is n
 catch(e){setStageStatus(e.message||'Screen sharing cancelled.');}
 }
 function bind(){
-document.getElementById('mc-add').onsubmit=addContact;document.getElementById('mc-send').onsubmit=sendMessage;document.getElementById('mc-remove').onclick=removeContact;document.getElementById('mc-block').onclick=blockContact;document.getElementById('mc-report').onclick=reportContact;document.getElementById('mc-refresh').onclick=refreshContacts;document.getElementById('mc-permissions').onclick=permissions;document.getElementById('mc-speaker').onclick=chooseSpeaker;document.getElementById('mc-notify').onclick=requestNotifications;document.getElementById('mc-notify-setup').onclick=requestNotifications;document.getElementById('mc-continue').onclick=finishSetup;updateNotificationUi();
+document.getElementById('mc-add').onsubmit=addContact;document.getElementById('mc-send').onsubmit=sendMessage;document.getElementById('mc-remove').onclick=removeContact;document.getElementById('mc-block').onclick=blockContact;document.getElementById('mc-report').onclick=reportContact;document.getElementById('mc-refresh').onclick=refreshContacts;document.getElementById('mc-permissions').onclick=permissions;document.getElementById('mc-speaker').onclick=chooseSpeaker;document.getElementById('mc-notify').onclick=requestNotifications;document.getElementById('mc-notify-setup').onclick=requestNotifications;document.getElementById('mc-continue').onclick=async()=>{try{const ctx=audioContext();if(ctx&&ctx.state==='suspended')await ctx.resume();}catch(e){}await finishSetup();};updateNotificationUi();
 const setTab=tab=>{
  MC.currentTab=tab;
  const root=document.getElementById('mc-root');
