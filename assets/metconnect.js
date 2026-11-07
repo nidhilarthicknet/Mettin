@@ -160,7 +160,11 @@ pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected'){stopOutgoin
 async function startCall(mode){
 if(MC.busy||MC.active||MC.incoming)return;const c=person(MC.selected);if(!c)return status('Choose a saved username.',true);MC.busy=true;let local=null,screen=null;
 try{
-let screenPromise=null;if(mode==='screen'){if(!navigator.mediaDevices?.getDisplayMedia)throw Error('Screen sharing is not supported by this browser.');screenPromise=navigator.mediaDevices.getDisplayMedia({video:{frameRate:15},audio:false});}
+let screenPromise=null;if(mode==='screen'){
+ if(!window.isSecureContext)throw Error('Screen sharing requires the secure HTTPS version of Mettin. Open https://nidhilarthicknet.github.io/Mettin/.');
+ if(typeof navigator.mediaDevices?.getDisplayMedia!=='function')throw Error('This browser does not expose the Screen Capture API. Use an up-to-date desktop Chrome, Edge or Firefox browser; some mobile browsers do not offer screen capture.');
+ screenPromise=navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+}
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
 const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:true,video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
 local.getTracks().forEach(t=>pc.addTrack(t,local));if(screen)screen.getTracks().forEach(t=>pc.addTrack(t,screen));
