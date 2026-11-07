@@ -99,6 +99,9 @@ body.mettin-app-immersive{overflow:hidden!important}
 <div id="toast" class="notice hidden" role="status" style="position:fixed;right:16px;bottom:16px;z-index:100;max-width:min(520px,calc(100vw - 32px));box-shadow:0 10px 30px #0007"></div>
 <script>
 'use strict';
+// Initialize MetPay UI state before any startup callbacks can call loadMetPay.
+var metPayChangeMode = false;
+
 const SUPABASE_URL='https://brahcvovidgjjzpkxsms.supabase.co',SUPABASE_KEY='sb_publishable_FFhWnTcsx3JflSHkIDaSaQ_Mwhh83up';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
 const $=id=>document.getElementById(id);
@@ -2098,7 +2101,6 @@ async function loadMetAlkHistory(){
     return '<div class="list-item"><strong>'+(m.sender_id===profile.id?'You':'Metxon user')+' → '+(m.recipient_id===profile.id?'you':'recipient')+'</strong><div>'+esc(m.message)+'</div>'+(photo?'<div style="margin-top:8px"><a href="'+esc(photo)+'" target="_blank" rel="noopener"><img src="'+esc(photo)+'" alt="Met-Alk photo attachment" style="max-width:220px;max-height:180px;object-fit:contain;border-radius:10px"></a></div>':'')+'<small>'+esc(fmtDate(m.created_at))+'</small></div>';
   }).join('')||'<div class="empty">No messages yet.</div>';
 }
-let metPayChangeMode=false;
 async function loadMetPay(){
  if(!profile)return;
  $('payWallet').textContent=moneyJp(profile.jp_balance);
