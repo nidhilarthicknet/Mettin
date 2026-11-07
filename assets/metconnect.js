@@ -180,6 +180,11 @@ async function handleIncoming(call){if(!call||call.status!=='ringing'||MC.active
 async function initMetConnectBackground(){
 if(!profile?.id)return;ensureLayer();if(!MC.setup){try{await loadSetup();}catch(e){return;}}if(!MC.setup||MC.incomingChannel)return;
 MC.incomingChannel=sb.channel('metconnect-incoming-'+profile.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_calls',filter:'callee_id=eq.'+profile.id},p=>handleIncoming(p.new)).subscribe();
+if(!MC.messageChannel){
+ MC.messageChannel=sb.channel('metconnect-notify-messages-'+profile.id)
+  .on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_messages',filter:'recipient_id=eq.'+profile.id},p=>handleIncomingMessage(p.new))
+  .subscribe();
+}
 const p=await sb.from('metconnect_calls').select('id,caller_id,callee_id,call_mode,status,offer_sdp,created_at').eq('callee_id',profile.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1);if(!p.error&&p.data?.[0])await handleIncoming(p.data[0]);
 }
 async function answerIncoming(){
@@ -280,8 +285,7 @@ if(!installed?.has('metconnect')){
 renderLocalApp(APPS.find(x=>x.id==='metconnect'),'<div class="mc-empty">Opening MetConnect…</div>');const host=document.getElementById('launchContent');if(!host)return;host.innerHTML=appMarkup();bind();
 try{updateNotificationUi();if(await loadSetup()){document.getElementById('mc-main').classList.remove('mc-hidden');await refreshContacts();await initMetConnectBackground();}else document.getElementById('mc-setup').classList.remove('mc-hidden');}
 catch(e){document.getElementById('mc-setup').classList.remove('mc-hidden');document.getElementById('mc-setup-status').textContent=e.message||'Could not load setup.';}
-MC.messageChannel=sb.channel('metconnect-messages-'+profile.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_messages',filter:'sender_id=eq.'+profile.id},()=>{if(MC.selected)loadMessages(MC.selected);}).on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_messages',filter:'recipient_id=eq.'+profile.id},p=>handleIncomingMessage(p.new)).subscribe();
-window.__mettinAppStop=function(){if(MC.messageChannel){sb.removeChannel(MC.messageChannel);MC.messageChannel=null;}};
+if(!MC.messageChannel)await initMetConnectBackground();
 }
 async function shutdown(){stopRing();stopOutgoing();if(MC.active)await endCall();if(MC.incomingChannel){sb.removeChannel(MC.incomingChannel);MC.incomingChannel=null;}if(MC.messageChannel){sb.removeChannel(MC.messageChannel);MC.messageChannel=null;}}
 function initBackground(){if(typeof profile!=='undefined'&&profile&&typeof installed!=='undefined'&&installed.has('metconnect'))initMetConnectBackground().catch(e=>console.warn('MetConnect listener:',e));}
