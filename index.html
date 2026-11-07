@@ -2125,14 +2125,14 @@ async function loadMetPay(){
  const t=await sb.from('metxon_jp_transactions').select('amount,transaction_type,note,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(12);
  $('payHistory').innerHTML=t.error?'<div class="empty">History unavailable.</div>':(t.data||[]).map(x=>'<div class="list-item"><div class="split"><strong>'+esc(x.transaction_type)+'</strong><small>'+esc(fmtDate(x.created_at))+'</small></div><div>'+esc(x.note)+'</div><strong class="price">'+(Number(x.amount)>=0?'+':'')+esc(moneyJp(x.amount))+'</strong></div>').join('')||'<div class="empty">No payments yet.</div>';
 }
-let metPaySetupBusy=false;
+// Keep the submission lock on window to avoid a lexical temporal-dead-zone on early taps.
 async function submitMetPaySetup(){
- if(metPaySetupBusy)return;
+ if(window.__metPaySetupBusy===true)return;
  const button=$('createMetpayPasswordBtn'),password=$('newMetpayPassword').value,confirmation=$('confirmMetpayPassword').value;
  if(!profile||!profile.id){status('metpaySetupStatus','Your Metxon session is not ready. Please sign in again.','error');return;}
  if(password.length<8||password.length>128){status('metpaySetupStatus','Use 8–128 characters for your MetPay password.','error');return;}
  if(password!==confirmation){status('metpaySetupStatus','The two MetPay passwords do not match.','error');return;}
- metPaySetupBusy=true;if(button)button.disabled=true;
+ window.__metPaySetupBusy=true;if(button)button.disabled=true;
  status('metpaySetupStatus','Saving and verifying your MetPay password…');
  try{
   const before=await sb.auth.getSession();
@@ -2152,7 +2152,7 @@ async function submitMetPaySetup(){
  }catch(err){
   console.error('MetPay password setup:',err);
   status('metpaySetupStatus',err.message||'MetPay password setup failed. Your account has not been signed out.','error');
- }finally{metPaySetupBusy=false;if(button)button.disabled=false;}
+ }finally{window.__metPaySetupBusy=false;if(button)button.disabled=false;}
 }
 window.submitMetPaySetup=submitMetPaySetup;
 $('metpaySetupForm').addEventListener('submit',e=>{e.preventDefault();e.stopPropagation();window.submitMetPaySetup();});
