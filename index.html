@@ -60,7 +60,7 @@ body.mettin-app-immersive{overflow:hidden!important}
 <section id="page-sme" class="page"><div class="eyebrow">Systemic Mineral Entities</div><h1>SME Registry</h1><p>All 12 original SME entries and their capabilities. Buying opens MetCart; Infuse inserts an SME reference into your Develop draft.</p><div class="notice warning">SME pricing is the fictional Metxon catalogue price per gram.</div><div id="smeGrid" class="grid three"></div><div class="card" style="margin-top:15px"><h3>SME catalogue on MetCart</h3><a class="btn primary" href="https://nidhilarthicknet.github.io/MetCart/?category=SME" target="_blank" rel="noopener">Open SME catalogue ↗</a></div></section>
 <section id="page-metpay" class="page"><div class="eyebrow">Shared Metxon payments</div><h1>MetPay</h1><p>Use the same MetPay password as Metxon. Transfers use the shared JP wallet and ledger.</p><div class="stats"><div class="stat"><small>InstaPay / JP wallet</small><strong id="payWallet">—</strong></div><div class="stat"><small>MetPay password</small><strong id="payPassState">Checking…</strong></div><div class="stat"><small>Conversion</small><strong>π1 = ₹100</strong><small>π1 = US$1.20</small></div><div class="stat"><small>Account</small><strong id="payUser">—</strong></div></div>
 <div class="grid"><div class="card"><h3>Send JP</h3><form id="transferForm"><div class="field"><label for="recipientUsername">Recipient username</label><input id="recipientUsername" required maxlength="80"></div><div class="field"><label for="transferAmount">Amount (π / JP)</label><input id="transferAmount" type="number" min="0.01" step="0.01" required></div><div class="field"><label for="transferPassword">MetPay password</label><input id="transferPassword" type="password" required autocomplete="current-password"></div><button class="btn primary" type="submit">Review and send</button><div id="transferStatus" class="status"></div></form></div>
-<div class="card"><h3>MetPay password</h3><p id="metpayHelp">Checking shared MetPay setting…</p><form id="metpaySetupForm" class="hidden" autocomplete="off" novalidate><div class="field"><label for="newMetpayPassword">New MetPay password</label><input id="newMetpayPassword" type="password" minlength="8" maxlength="128" required autocomplete="new-password"></div><div class="field"><label for="confirmMetpayPassword">Confirm MetPay password</label><input id="confirmMetpayPassword" type="password" minlength="8" maxlength="128" required autocomplete="new-password"></div><button class="btn primary" id="createMetpayPasswordBtn" type="button" onclick="window.submitMetPaySetup()">Create MetPay password</button><div id="metpaySetupStatus" class="status" aria-live="polite"></div></form><button class="btn hidden" id="metpayChangePasswordBtn" type="button" style="margin-top:10px">Change MetPay password</button><div id="metpayStateStatus" class="status" aria-live="polite"></div><div class="divider"></div><h3>Saved contacts</h3><form id="contactForm"><div class="row"><div class="field" style="flex:1"><label for="contactUsername">Username</label><input id="contactUsername" maxlength="80" required></div><button class="btn" style="align-self:flex-end" type="submit">Add</button></div><div id="contactStatus" class="status"></div></form><div id="contactsList" class="list"></div></div></div><h2 class="section-title" id="payHistoryHeading">Transactions</h2><p>Recent MetPay transfers and shared JP ledger activity.</p><div id="payHistory" class="list"></div></section>
+<div class="card"><h3>MetPay password</h3><p id="metpayHelp">Checking shared MetPay setting…</p><form id="metpaySetupForm" class="hidden" autocomplete="off" novalidate><div class="field"><label for="newMetpayPassword">New MetPay password</label><input id="newMetpayPassword" type="password" minlength="8" maxlength="128" required autocomplete="new-password"></div><div class="field"><label for="confirmMetpayPassword">Confirm MetPay password</label><input id="confirmMetpayPassword" type="password" minlength="8" maxlength="128" required autocomplete="new-password"></div><button class="btn primary" id="createMetpayPasswordBtn" type="button">Create MetPay password</button><div id="metpaySetupStatus" class="status" aria-live="polite"></div></form><button class="btn hidden" id="metpayChangePasswordBtn" type="button" style="margin-top:10px">Change MetPay password</button><div id="metpayStateStatus" class="status" aria-live="polite"></div><div class="divider"></div><h3>Saved contacts</h3><form id="contactForm"><div class="row"><div class="field" style="flex:1"><label for="contactUsername">Username</label><input id="contactUsername" maxlength="80" required></div><button class="btn" style="align-self:flex-end" type="submit">Add</button></div><div id="contactStatus" class="status"></div></form><div id="contactsList" class="list"></div></div></div><h2 class="section-title" id="payHistoryHeading">Transactions</h2><p>Recent MetPay transfers and shared JP ledger activity.</p><div id="payHistory" class="list"></div></section>
 <section id="page-settings" class="page">
 <div class="eyebrow">Account preferences</div><h1>Settings</h1>
 <div class="settings-layout">
@@ -2183,6 +2183,46 @@ sb.auth.onAuthStateChange((event,newSession)=>{if(event==='SIGNED_OUT'){session=
 boot().catch(e=>{console.error('Mettin initialization:',e);gateMessage(e.message||'Mettin could not initialize.','error');});
 </script>
 
+<script id="metpay-password-click-controller">
+(function(){
+ 'use strict';
+ function show(message, error){
+  const box=document.getElementById('metpaySetupStatus');
+  if(!box)return;
+  box.textContent=message||'';
+  box.className='status'+(error?' error':'');
+ }
+ async function run(){
+  const button=document.getElementById('createMetpayPasswordBtn');
+  if(!button)return;
+  if(typeof window.submitMetPaySetup!=='function'){
+   show('MetPay setup did not load. Refresh Mettin and try again.',true);
+   return;
+  }
+  try{
+   await window.submitMetPaySetup();
+  }catch(error){
+   show(error&&error.message?error.message:'MetPay password could not be saved. Please try again.',true);
+  }
+ }
+ document.addEventListener('click',function(event){
+  const target=event.target;
+  if(!(target instanceof Element))return;
+  const button=target.closest('#createMetpayPasswordBtn');
+  if(!button)return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  run();
+ },true);
+ const form=document.getElementById('metpaySetupForm');
+ if(form)form.addEventListener('submit',function(event){
+  event.preventDefault();
+  event.stopPropagation();
+  run();
+ });
+})();
+</script>
 <script src="assets/metconnect.js"></script>
 <!-- Metxon ecosystem navigation and payment transitions -->
 <style id="metxon-transition-style">
