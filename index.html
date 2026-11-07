@@ -146,6 +146,65 @@ function moneyInr(n){const v=Number(n||0),c=settings.currency_code||'JP';if(c===
 function moneyJp(n){const v=Number(n||0),c=settings.currency_code||'JP';if(c==='INR')return '₹'+(v*100).toLocaleString('en-IN',{maximumFractionDigits:2});if(c==='USD')return '$'+(v*1.2).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});return 'π'+v.toLocaleString('en-IN',{maximumFractionDigits:2});}
 function fmtDate(v){if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?'—':d.toLocaleString([],{dateStyle:'medium',timeStyle:'short'});}
 async function rpc(name,args){const r=await sb.rpc(name,args||{});if(r.error)throw r.error;return r.data;}
+const METACCOUNT_CONNECT_CUTOFF = '2026-11-06T18:30:00.000Z';
+let metAccountConnectPromise = null;
+async function verifyMetAccountCredentials(username,password,expectedUserId){
+ const normalized=String(username||'').trim().toLowerCase();
+ if(!normalized||!password)throw new Error('Enter your Metxon username and password.');
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(normalized));
+ const email='u'+Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('')+'@metxon.local';
+ const verifier=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+ try{
+  const result=await verifier.auth.signInWithPassword({email,password});
+  if(result.error)throw new Error('Metxon username or password is incorrect.');
+  if(!result.data?.user?.id||result.data.user.id!==expectedUserId)throw new Error('Those credentials belong to a different Metxon account. Sign in with the account used on this website.');
+ }finally{
+  try{await verifier.auth.signOut();}catch(e){}
+ }
+}
+async function ensureMetAccountConnect(){
+ if(!profile?.id||!profile.created_at||new Date(profile.created_at).getTime()<Date.parse(METACCOUNT_CONNECT_CUTOFF))return true;
+ if(metAccountConnectPromise)return metAccountConnectPromise;
+ metAccountConnectPromise=(async()=>{
+  const sites=['metverse','metcart','metcount','mettin'];
+  const current=await sb.from('metaccount_site_links').select('site_key').eq('user_id',profile.id);
+  if(current.error)throw current.error;
+  const linked=new Set((current.data||[]).map(x=>x.site_key));
+  if(sites.every(site=>linked.has(site)))return true;
+  return await new Promise(resolve=>{
+   const overlay=document.createElement('div');
+   overlay.id='metaccount-connect-overlay';
+   overlay.style.cssText='position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:18px;background:rgba(2,7,14,.94);backdrop-filter:blur(12px);';
+   overlay.innerHTML='<section style="width:min(520px,100%);padding:clamp(22px,5vw,34px);border:1px solid #31536b;border-radius:22px;background:linear-gradient(145deg,#102638,#07131f);color:#eef7ff;box-shadow:0 24px 90px #000b;font-family:inherit"><div style="font-size:12px;letter-spacing:2px;color:#6fe2d1;font-weight:800">METXON · ACCOUNT CONNECTION</div><h2 style="margin:10px 0">MetAccount Connect</h2><p style="color:#afc5d8;line-height:1.55">Connect this new account to your other Metxon products. Verify the same Metxon username and password once; this will link MetVerse, MetCart, MetCount and Mettin. Your password is checked securely and is not saved here.</p><label style="display:block;margin:14px 0 6px;font-weight:750" for="metaccount-connect-username">Metxon username</label><input id="metaccount-connect-username" autocomplete="username" maxlength="80" style="width:100%;box-sizing:border-box;padding:13px;border:1px solid #385b73;border-radius:10px;background:#06131e;color:white"><label style="display:block;margin:14px 0 6px;font-weight:750" for="metaccount-connect-password">Metxon account password</label><input id="metaccount-connect-password" type="password" autocomplete="current-password" maxlength="128" style="width:100%;box-sizing:border-box;padding:13px;border:1px solid #385b73;border-radius:10px;background:#06131e;color:white"><button id="metaccount-connect-submit" type="button" style="width:100%;margin-top:18px;padding:13px;border:0;border-radius:11px;background:linear-gradient(110deg,#087d70,#176eaa);color:white;font-weight:850">Connect MetAccount</button><p id="metaccount-connect-status" role="status" aria-live="polite" style="min-height:22px;color:#ffb5b5;margin-bottom:0"></p><small style="color:#8faabe">All connected services use the same Metxon profile. You must complete this step before using this new account on this site.</small></section>';
+   document.body.appendChild(overlay);
+   const usernameInput=overlay.querySelector('#metaccount-connect-username');
+   const passwordInput=overlay.querySelector('#metaccount-connect-password');
+   const button=overlay.querySelector('#metaccount-connect-submit');
+   const statusBox=overlay.querySelector('#metaccount-connect-status');
+   usernameInput.value=profile.username||'';
+   button.addEventListener('click',async()=>{
+    if(button.disabled)return;
+    const username=usernameInput.value.trim(),password=passwordInput.value;
+    button.disabled=true;button.textContent='Verifying Metxon account…';statusBox.style.color='#b8cfdf';statusBox.textContent='Checking your Metxon credentials…';
+    try{
+     await verifyMetAccountCredentials(username,password,profile.id);
+     passwordInput.value='';
+     const rows=sites.map(site_key=>({user_id:profile.id,site_key}));
+     const saved=await sb.from('metaccount_site_links').upsert(rows,{onConflict:'user_id,site_key'});
+     if(saved.error)throw saved.error;
+     overlay.remove();resolve(true);
+    }catch(error){
+     passwordInput.value='';
+     statusBox.style.color='#ffb5b5';statusBox.textContent=error.message||'MetAccount could not be connected. Please try again.';
+     button.disabled=false;button.textContent='Connect MetAccount';
+    }
+   });
+   passwordInput.addEventListener('keydown',e=>{if(e.key==='Enter')button.click();});
+   usernameInput.focus();
+  });
+ })().finally(()=>{metAccountConnectPromise=null;});
+ return metAccountConnectPromise;
+}
 async function getProfile(){const r=await sb.auth.getSession();session=r.data.session;if(!session){profile=null;return false;}const q=await sb.from('profiles').select('id,username,display_name,role,balance,jp_balance,phone,dob,address,subscription_tier,subscription_until,chess_rating,chess_games_played,chess_wins,chess_losses,chess_draws,created_at,updated_at').eq('id',session.user.id).maybeSingle();if(q.error||!q.data){profile=null;return false;}profile=q.data;return true;}
 async function usernameEmail(username){const dig=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(username||'').trim().toLowerCase()));return 'u'+Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('')+'@metxon.local';}
 function gateMessage(msg,type){const e=$('gateStatus');e.textContent=msg||'';e.className='notice'+(type==='error'?' warning':'')+(msg?'':' hidden');}
@@ -163,7 +222,7 @@ $('signupForm').addEventListener('submit',async e=>{e.preventDefault();try{await
 $('toggleSignup').addEventListener('click',()=>{displayGate(!$('signupForm').classList.contains('hidden'));gateMessage('');});
 $('lockBtn').addEventListener('click',signOut);
 async function signOut(){if(typeof window.metconnectShutdown==='function'){try{await window.metconnectShutdown();}catch(e){}}if(metxonHomeTimer){clearInterval(metxonHomeTimer);metxonHomeTimer=null;}await sb.auth.signOut();session=null;profile=null;$('shell').style.display='none';$('gate').style.display='grid';displayGate(false);gateMessage('You have signed out of Metxon.');}
-async function launchShell(){settings={currency_code:'JP'};const q=await sb.from('mettin_user_settings').select('currency_code').eq('user_id',profile.id).maybeSingle();if(!q.error&&q.data)settings.currency_code=q.data.currency_code||'JP';localStorage.setItem('metcartCurrency',settings.currency_code);$('gate').style.display='none';$('shell').style.display='block';$('userChip').textContent=profile.username||profile.display_name||'Metxon';$('currencyChoice').value=settings.currency_code;renderProfile();renderMetware();renderSmes();populateSmeSelect();await refreshOverview();await loadProjects();await loadStore();await loadCareTickets();await loadCarePlans();await loadMetPay();await processMettinDeepLink();if(installed.has('metconnect')&&typeof initMetConnectBackground==='function')await initMetConnectBackground();if(metxonHomeTimer)clearInterval(metxonHomeTimer);metxonHomeTimer=setInterval(()=>{if(profile)refreshMetxonHome();},60000);}
+async function launchShell(){if(!(await ensureMetAccountConnect()))return;settings={currency_code:'JP'};const q=await sb.from('mettin_user_settings').select('currency_code').eq('user_id',profile.id).maybeSingle();if(!q.error&&q.data)settings.currency_code=q.data.currency_code||'JP';localStorage.setItem('metcartCurrency',settings.currency_code);$('gate').style.display='none';$('shell').style.display='block';$('userChip').textContent=profile.username||profile.display_name||'Metxon';$('currencyChoice').value=settings.currency_code;renderProfile();renderMetware();renderSmes();populateSmeSelect();await refreshOverview();await loadProjects();await loadStore();await loadCareTickets();await loadCarePlans();await loadMetPay();await processMettinDeepLink();if(installed.has('metconnect')&&typeof initMetConnectBackground==='function')await initMetConnectBackground();if(metxonHomeTimer)clearInterval(metxonHomeTimer);metxonHomeTimer=setInterval(()=>{if(profile)refreshMetxonHome();},60000);}
 async function guideMetPaySetup(){
  if(!profile)return;
  try{
