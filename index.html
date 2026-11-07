@@ -68,7 +68,7 @@ body.mettin-app-immersive{overflow:hidden!important}
     <button type="button" class="settings-nav active" data-setting="about" onclick="showSetting('about')">About</button>
     <button type="button" class="settings-nav" data-setting="currency" onclick="showSetting('currency')">Currency</button>
     <button type="button" class="settings-nav" data-setting="security" onclick="showSetting('security')">Security</button>
-    <button type="button" class="settings-nav" data-setting="password" onclick="showSetting('password')">Change password</button><button type="button" class="settings-nav" data-setting="transactions" onclick="openTransactions()">Transactions</button>
+    <button type="button" class="settings-nav" data-setting="password" onclick="showSetting('password')">Change password</button><button type="button" class="settings-nav" data-setting="metconnect" onclick="showSetting('metconnect')">MetConnect</button><button type="button" class="settings-nav" data-setting="transactions" onclick="openTransactions()">Transactions</button>
   </aside>
   <div class="settings-main">
     <section id="settings-about" class="settings-panel active">
@@ -85,7 +85,8 @@ body.mettin-app-immersive{overflow:hidden!important}
         <div class="card"><h3>Metware X</h3><p>Reserved for Metxon Corporate's internal security use, including banking systems. It is not a public product and cannot be purchased.</p><span class="pill purple">Internal only</span></div>
       </div>
     </section>
-    <section id="settings-password" class="settings-panel">
+    <section id="settings-metconnect" class="settings-panel"><div class="card"><h2>MetConnect</h2><p>Open private messages and calls in a separate browser window. The first installation uses the shared MetPay flow at π50 (50 JP). Your installation is shared across your Metxon account and will not be charged again simply because you opened it from another Metxon website.</p><button class="btn primary" type="button" onclick="window.open('https://nidhilarthicknet.github.io/Mettin/?openApp=metconnect','MetConnect','popup,width=1120,height=820,resizable=yes,scrollbars=yes')">Open MetConnect window ↗</button></div></section>
+<section id="settings-password" class="settings-panel">
       <div class="card"><h2>Change Metxon account password</h2><p>Verify your current password. The new password applies to your shared Metxon account.</p><form id="changePasswordForm"><div class="field"><label for="oldAccountPassword">Current password</label><input id="oldAccountPassword" type="password" required autocomplete="current-password"></div><div class="field"><label for="newAccountPassword">New password (8–128 characters)</label><input id="newAccountPassword" type="password" minlength="8" maxlength="128" required autocomplete="new-password"></div><div class="field"><label for="confirmAccountPassword">Confirm new password</label><input id="confirmAccountPassword" type="password" minlength="8" maxlength="128" required autocomplete="new-password"></div><button class="btn primary" type="submit">Update password</button><div id="passwordChangeStatus" class="status"></div></form></div>
     </section>
   </div>
@@ -177,7 +178,7 @@ async function processMettinDeepLink(){if(!profile)return;let url;try{url=new UR
 async function boot(){if(await getProfile())await launchShell();else{displayGate(false);$('shell').style.display='none';$('gate').style.display='grid';}}
 function showPage(page){if(!profile)return;if(page!=='nebula'){setAppLaunchFullscreen(false);if(typeof window.__mettinChessStop==='function'){try{window.__mettinChessStop();}catch(e){}window.__mettinChessStop=null;}if(typeof window.__mettinAppStop==='function'){try{window.__mettinAppStop();}catch(e){}window.__mettinAppStop=null;}$('appLaunchPanel').classList.add('hidden');}document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const el=$('page-'+page);if(el)el.classList.add('active');document.querySelectorAll('.nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));if(page==='home')refreshOverview();if(page==='metware')renderMetware();if(page==='nebula')loadStore();if(page==='care'){loadCarePlans();loadCareTickets();}if(page==='develop')loadProjects();if(page==='sme')renderSmes();if(page==='metpay')loadMetPay();if(page==='profile')renderProfile();if(page==='settings')renderSettings();window.scrollTo({top:0,behavior:'smooth'});}
 function showSetting(tab){
-  const valid=['about','currency','security','password'];
+  const valid=['about','currency','security','password','metconnect'];
   if(!valid.includes(tab))tab='about';
   document.querySelectorAll('.settings-panel').forEach(p=>p.classList.toggle('active',p.id==='settings-'+tab));
   document.querySelectorAll('.settings-nav').forEach(b=>b.classList.toggle('active',b.dataset.setting===tab));
