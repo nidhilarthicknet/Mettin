@@ -178,14 +178,23 @@ function showIncoming(call,peer){ensureLayer();MC.incoming=call;document.getElem
 function hideIncoming(){stopRing();if(MC.timeout)clearTimeout(MC.timeout);MC.timeout=null;document.getElementById('mc-incoming')?.classList.add('mc-hidden');}
 async function handleIncoming(call){if(!call||call.status!=='ringing'||MC.active||MC.incoming||!MC.setup)return;const q=await sb.rpc('metconnect_get_call_peer',{p_call_id:call.id});if(q.error)return;const p=Array.isArray(q.data)?q.data[0]:null;if(p)showIncoming(call,p);}
 async function initMetConnectBackground(){
-if(!profile?.id)return;ensureLayer();if(!MC.setup){try{await loadSetup();}catch(e){return;}}if(!MC.setup||MC.incomingChannel)return;
-MC.incomingChannel=sb.channel('metconnect-incoming-'+profile.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_calls',filter:'callee_id=eq.'+profile.id},p=>handleIncoming(p.new)).subscribe();
+if(!profile?.id)return;
+ensureLayer();
+if(!MC.setup){try{await loadSetup();}catch(e){console.warn('MetConnect setup status:',e);return;}}
+if(!MC.setup)return;
+if(!MC.incomingChannel){
+ MC.incomingChannel=sb.channel('metconnect-incoming-'+profile.id)
+  .on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_calls',filter:'callee_id=eq.'+profile.id},p=>handleIncoming(p.new))
+  .subscribe();
+}
 if(!MC.messageChannel){
  MC.messageChannel=sb.channel('metconnect-notify-messages-'+profile.id)
   .on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_messages',filter:'recipient_id=eq.'+profile.id},p=>handleIncomingMessage(p.new))
   .subscribe();
 }
-const p=await sb.from('metconnect_calls').select('id,caller_id,callee_id,call_mode,status,offer_sdp,created_at').eq('callee_id',profile.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1);if(!p.error&&p.data?.[0])await handleIncoming(p.data[0]);
+const pending=await sb.from('metconnect_calls').select('id,caller_id,callee_id,call_mode,status,offer_sdp,created_at')
+ .eq('callee_id',profile.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1);
+if(!pending.error&&pending.data?.[0])await handleIncoming(pending.data[0]);
 }
 async function answerIncoming(){
 const call=MC.incoming;if(!call||MC.busy)return;MC.busy=true;let local=null;
@@ -289,11 +298,7 @@ if(!MC.messageChannel)await initMetConnectBackground();
 }
 async function shutdown(){stopRing();stopOutgoing();if(MC.active)await endCall();if(MC.incomingChannel){sb.removeChannel(MC.incomingChannel);MC.incomingChannel=null;}if(MC.messageChannel){sb.removeChannel(MC.messageChannel);MC.messageChannel=null;}}
 function initBackground(){if(typeof profile!=='undefined'&&profile&&typeof installed!=='undefined'&&installed.has('metconnect'))initMetConnectBackground().catch(e=>console.warn('MetConnect listener:',e));}
-window.initMetConnectBackground=async function(){
-if(!profile?.id)return;ensureLayer();if(!MC.setup){try{await loadSetup();}catch(e){return;}}if(!MC.setup||MC.incomingChannel)return;
-MC.incomingChannel=sb.channel('metconnect-incoming-'+profile.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_calls',filter:'callee_id=eq.'+profile.id},p=>handleIncoming(p.new)).subscribe();
-const p=await sb.from('metconnect_calls').select('id,caller_id,callee_id,call_mode,status,offer_sdp,created_at').eq('callee_id',profile.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1);if(!p.error&&p.data?.[0])await handleIncoming(p.data[0]);
-};
+window.initMetConnectBackground=initMetConnectBackground;
 window.launchMetConnectApp=openApp;window.metconnectShutdown=shutdown;window.openMetConnect=function(){window.location.href='https://nidhilarthicknet.github.io/Mettin/?openApp=metconnect';};
 window.addEventListener('beforeunload',()=>{if(MC.peer)MC.peer.close();});
 window.dispatchEvent(new Event('metconnect-ready'));
