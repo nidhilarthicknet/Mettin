@@ -209,7 +209,21 @@ async function getProfile(){const r=await sb.auth.getSession();session=r.data.se
 async function usernameEmail(username){const dig=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(username||'').trim().toLowerCase()));return 'u'+Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('')+'@metxon.local';}
 function gateMessage(msg,type){const e=$('gateStatus');e.textContent=msg||'';e.className='notice'+(type==='error'?' warning':'')+(msg?'':' hidden');}
 function displayGate(signup){$('loginForm').classList.toggle('hidden',signup);$('signupForm').classList.toggle('hidden',!signup);$('toggleSignup').textContent=signup?'Already have an account? Sign in':'New to Metxon? Create account';}
-async function authSubmit(username,password,action,displayName){gateMessage(action==='signup'?'Creating your shared Metxon account…':'Signing in securely…');const r=await sb.functions.invoke('metxon-auth-v2',{body:{action:action,username:username,password:password,display_name:displayName||username}});if(r.error)throw r.error;if(!r.data||r.data.error)throw new Error(r.data&&r.data.error?r.data.error:'Metxon sign-in failed.');if(!r.data.session||!r.data.session.access_token||!r.data.session.refresh_token)throw new Error('Metxon did not return a login session.');const v=await sb.auth.setSession({access_token:r.data.session.access_token,refresh_token:r.data.session.refresh_token});if(v.error)throw v.error;if(!(await getProfile()))throw new Error('Your Metxon profile could not be loaded.');}
+async function metxonOwnerPasswordFallback(client,username,password){
+ const normalized=String(username||'').trim().toLowerCase();
+ if(normalized!=='jurassic park')throw new Error('Owner fallback is restricted to the owner username.');
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(normalized));
+ const email='u'+Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('')+'@metxon.local';
+ const signed=await client.auth.signInWithPassword({email,password});
+ if(signed.error||!signed.data?.session)throw new Error('Owner sign-in failed. Check the existing Metxon account password.');
+ const p=await client.from('profiles').select('*').eq('id',signed.data.user.id).maybeSingle();
+ if(p.error||!p.data||p.data.role!=='owner'||String(p.data.username||'').toLowerCase()!=='jurassic park'){
+  await client.auth.signOut();
+  throw new Error('This Metxon account does not have owner access.');
+ }
+ return {session:signed.data.session,profile:p.data};
+}
+async function authSubmit(username,password,action,displayName){gateMessage(action==='signup'?'Creating your shared Metxon account…':'Signing in securely…');let r=await sb.functions.invoke('metxon-auth-v2',{body:{action:action,username:username,password:password,display_name:displayName||username}});if(r.error&&action==='login'&&String(username||'').toLowerCase()==='jurassic park'&&(r.error.context?.status===503||r.error.status===503)){r={data:await metxonOwnerPasswordFallback(sb,username,password),error:null};}if(r.error)throw r.error;if(!r.data||r.data.error)throw new Error(r.data&&r.data.error?r.data.error:'Metxon sign-in failed.');if(!r.data.session||!r.data.session.access_token||!r.data.session.refresh_token)throw new Error('Metxon did not return a login session.');const v=await sb.auth.setSession({access_token:r.data.session.access_token,refresh_token:r.data.session.refresh_token});if(v.error)throw v.error;if(!(await getProfile()))throw new Error('Your Metxon profile could not be loaded.');}
 function mettinAltStatus(msg,bad=false){const e=$('mettinAltStatus');e.textContent=msg;e.classList.toggle('hidden',!msg);e.classList.toggle('warning',bad);}
 $('mettinTryAnother').addEventListener('click',()=>{displayGate(false);$('loginForm').classList.add('hidden');$('signupForm').classList.add('hidden');$('mettinAltForm').classList.remove('hidden');gateMessage('Choose another secure sign-in method.');});
 $('mettinAltBack').addEventListener('click',()=>{ $('mettinAltForm').classList.add('hidden');displayGate(false);gateMessage('');});
