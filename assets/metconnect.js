@@ -57,9 +57,7 @@ async function notifySystem(title,body,tag){
 function handleIncomingMessage(row){
  if(!row||row.sender_id===profile.id)return;
  const current=person(row.sender_id);
- if(MC.selected!==row.sender_id||MC.currentTab!=='talk'||document.hidden){
-  notifySystem('New MetConnect message','@'+(current?.username||'Metxon user')+': '+String(row.body||'').slice(0,160),'metconnect-message-'+row.id);
- }
+ notifySystem('New MetConnect message','@'+(current?.username||'Metxon user')+': '+String(row.body||'').slice(0,160),'metconnect-message-'+row.id);
  if(MC.selected)loadMessages(MC.selected);
 }
 // Incoming receiver tone: an original celestial-bell melody with short guitar-like plucks.
@@ -162,8 +160,9 @@ if(MC.busy||MC.active||MC.incoming)return;const c=person(MC.selected);if(!c)retu
 try{
 let screenPromise=null;if(mode==='screen'){
  if(!window.isSecureContext)throw Error('Screen sharing requires the secure HTTPS version of Mettin. Open https://nidhilarthicknet.github.io/Mettin/.');
- if(typeof navigator.mediaDevices?.getDisplayMedia!=='function')throw Error('This browser does not expose the Screen Capture API. Use an up-to-date desktop Chrome, Edge or Firefox browser; some mobile browsers do not offer screen capture.');
- screenPromise=navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+ const capture=navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices)||navigator.getDisplayMedia?.bind(navigator);
+ if(!capture)throw Error('Your current browser does not provide screen capture. MetConnect screen sharing works in supported desktop browsers over HTTPS; Chrome on Android does not expose the browser screen-capture API. Open MetConnect on a desktop browser to share a screen.');
+ screenPromise=capture({video:true,audio:false});
 }
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
 const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:true,video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
