@@ -335,6 +335,7 @@ function renderBunAccount(){
  const plan=active?(ent.tier==='trial'?'2-day trial':'MetConnect+'):'No active plan';
  const buy=active?'<button class="mc-btn primary" type="button" id="mc-bun-buy-plus">Renew / upgrade · π30 per month</button>':
   (!ent.trial_used?'<button class="mc-btn primary" type="button" id="mc-bun-buy-trial">Start 2-day B-UN trial · π2</button>':'<button class="mc-btn primary" type="button" id="mc-bun-buy-plus">Subscribe to MetConnect+ · π30 per month</button>');
+ const listTitle=document.getElementById('mc-list-title');if(listTitle&&MC.currentTab==='bun')listTitle.textContent=bun?'Saved by customers of @'+bun.username:'People who saved your B-UN';
  const profiles=MC.bunProfiles.map(b=>'<div class="mc-person"><span><b>@'+esc(b.username)+'</b><small>'+esc(b.business_name)+'</small></span><span><button type="button" class="mc-btn" data-bun-use="'+esc(b.id)+'">'+(bun?.id===b.id?'Using':'Use')+'</button> <button type="button" class="mc-btn" data-bun-edit="'+esc(b.id)+'">Rename</button></span></div>').join('');
  root.innerHTML='<div class="mc-bun-card"><div class="mc-bun-label">METCONNECT BUSINESS USERNAMES</div><h3 style="margin:5px 0 8px">B-UN</h3><p class="mc-note">Create multiple public business handles for your business. People must save a particular B-UN before it can message or voice-call them. Video calls and screen sharing are disabled in B-UN mode. Blocks apply to your Metxon business account, even if you create or rename another handle.</p>'+membership+'<div class="mc-bun-grid" style="margin-top:10px"><div><b>'+esc(plan)+'</b><div class="mc-bun-label">'+(active?'Membership expiry: '+esc(expiry):'Trial: π2 for 2 days · MetConnect+: π30/month')+'</div></div><div><input class="mc-input" type="password" id="mc-bun-metpay" placeholder="MetPay transaction password" autocomplete="current-password" maxlength="128"></div></div><div class="mc-bun-actions" style="margin-top:9px">'+buy+'</div><small class="mc-note">The π30 monthly plan is renewed by confirming the payment. No silent recurring charge is made.</small></div>'+
   '<div class="mc-bun-card"><h3>Your B-UN numbers</h3>'+(profiles||'<p class="mc-note">No business usernames yet.</p>')+'<div class="mc-bun-actions" style="margin-top:9px"><button class="mc-btn" id="mc-bun-new" type="button">Create another B-UN</button></div></div>'+
@@ -346,7 +347,7 @@ function renderBunAccount(){
  if(add)add.onclick=()=>{MC.editingBunId=null;renderBunAccount();};
  root.querySelectorAll('[data-bun-use]').forEach(b=>b.onclick=()=>{
   MC.ownBun=MC.bunProfiles.find(x=>x.id===b.dataset.bunUse)||null;
-  MC.bunStatus.bun=MC.ownBun;renderBunAccount();refreshBunContacts();
+  MC.bunStatus.bun=MC.ownBun;MC.selected=null;MC.selectedBunId=null;MC.activeBunClient=null;loadMessages(null);renderBunAccount();refreshBunContacts();
   status(MC.ownBun?'Using @'+MC.ownBun.username+'.':'Choose a B-UN.');
  });
  root.querySelectorAll('[data-bun-edit]').forEach(b=>b.onclick=()=>{
