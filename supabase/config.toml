@@ -1,0 +1,2 @@
+[functions.metconnect-push]
+verify_jwt = false
