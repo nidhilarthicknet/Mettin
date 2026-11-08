@@ -12,7 +12,7 @@ function appMarkup(){return '<style>'+
 '.mc-bun-card{border:1px solid #2d4b61;border-radius:14px;padding:12px;background:#0b1d2c;margin:8px 0}.mc-bun-actions{display:flex;gap:8px;flex-wrap:wrap}.mc-bun-actions>*{flex:1;min-width:160px}.mc-bun-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:9px}.mc-bun-label{font-size:12px;color:#9eb9cb}.mc-bun-chip{display:inline-block;border:1px solid #49677f;border-radius:999px;padding:3px 8px;font-size:11px;color:#c9dced;margin:4px 4px 0 0}.mc-bun-chip.warn{border-color:#ad7950;color:#ffd7ad}.mc-bun-chip.good{border-color:#398c7b;color:#9debd6}.mc{width:100%;height:100%;min-height:0;display:flex;flex-direction:column;border:0;border-radius:0}.mc-grid{flex:1;min-height:0;overflow:hidden}.mc-chat{height:100%;min-height:0}.mc-messages{min-height:0;max-height:none}.mc-grid.mc-chat-focus{grid-template-columns:minmax(0,1fr);height:100%}.mc-grid.mc-chat-focus>.mc-panel:first-child{display:none}.mc-grid.mc-chat-focus>.mc-chat{width:100%;min-height:0;height:100%}#mc-main:not(.mc-hidden){display:flex;flex:1;flex-direction:column;min-height:0}.mc-menu{flex:0 0 auto}.mc-chat .mc-head{flex-wrap:wrap}.mc-chat .mc-head>div:last-child{max-width:100%}.mc-chat .mc-head .mc-actions{align-items:center}.mc-call-controls{flex:0 0 auto}@media(max-width:760px){.mc{min-height:0}.mc-grid{min-height:0}.mc-chat{min-height:0}.mc-grid.mc-chat-focus{padding:0}.mc-grid.mc-chat-focus>.mc-chat{border:0;border-radius:0}}'+
 '</style><div class="mc" id="mc-root"><header class="mc-top"><div class="mc-brand"><div class="mc-logo" aria-label="MetConnect"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M10 25.5c0-8.2 6.3-14.5 14-14.5s14 6.3 14 14.5-6.3 14-14 14S10 33.7 10 25.5Z" stroke="#06131d" stroke-width="3"/><path d="M16 25h5l3-7 4.5 14 3-7H36" stroke="#06131d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="25" r="3" fill="#06131d"/><circle cx="38" cy="25" r="3" fill="#06131d"/></svg></div><div><strong>MetConnect</strong><small>Private messages and calls · Metxon account</small></div></div><div class="mc-actions"><button class="mc-btn" id="mc-notify" type="button">Enable notifications</button><button class="mc-btn" id="mc-refresh" type="button">Refresh</button></div></header>'+
 '<section id="mc-setup" class="mc-setup mc-hidden"><div class="eyebrow">METCONNECT SETUP</div><h2>Stay connected to everyone.</h2><p>Save Metxon usernames to message or call people who have installed MetConnect. Contacts are private. You can remove, block or report a user.</p><div class="mc-perms"><div class="mc-perm">🎙️<b>Microphone permission</b><small id="mc-mic-state">Not requested</small></div><div class="mc-perm">📷<b>Camera permission</b><small id="mc-cam-state">Not requested</small></div><div class="mc-perm">🔔<b>Speaker for ringing</b><small id="mc-speaker-state">Device default</small></div><div class="mc-perm">📣<b>Notifications</b><small id="mc-notify-state">Not enabled</small></div></div><div class="mc-actions"><button class="mc-btn primary" id="mc-permissions">Allow microphone and camera</button><button class="mc-btn" id="mc-speaker">Choose speaker</button><button class="mc-btn" id="mc-notify-setup">Enable notifications</button><button class="mc-btn" id="mc-continue">Continue</button></div><p class="mc-note">Browsers do not have a special speaker permission. Supported browsers can show an audio-output selector; otherwise the device speaker or headset is used. Camera and microphone are requested only after you press Allow. Notifications are optional and can be changed in browser site settings.</p><div class="mc-note" id="mc-setup-status" role="status"></div></section>'+
-'<section id="mc-main" class="mc-hidden"><nav class="mc-menu"><button type="button" class="active" data-tab="contacts">Saved Usernames</button><button type="button" data-tab="talk">Talk</button><button type="button" data-tab="screen">Share Screen Call</button><button type="button" data-tab="voice">Voice Call</button><button type="button" data-tab="video">Video Call</button><button type="button" data-tab="bun">B-UN</button></nav><div id="mc-tab-help" class="mc-note" style="padding:10px 14px;margin:0;background:#091a29;border-bottom:1px solid #294157">Choose a saved username to view messages.</div><section id="mc-bun-account" class="mc-hidden" style="padding:12px;background:#0b1d2c;border-bottom:1px solid #294157"></section><div class="mc-grid"><aside class="mc-panel"><div class="mc-head"><b id="mc-list-title">Saved Usernames</b><span class="pill" id="mc-count">0</span></div><div class="mc-body"><form id="mc-add" class="mc-form"><input class="mc-input" id="mc-username" placeholder="Metxon username" maxlength="80" required><button class="mc-btn primary">Add</button></form><div id="mc-contacts" class="mc-contacts"><div class="mc-empty">Loading usernames…</div></div></div></aside><section class="mc-panel mc-chat"><div class="mc-head"><div><b id="mc-title">Choose a username</b><small id="mc-subtitle" style="display:block;color:#9bb3c8">Save a contact to start texting</small></div><div class="mc-actions"><button class="mc-btn" id="mc-remove" disabled>Remove</button><button class="mc-btn danger" id="mc-block" disabled>Block</button><button class="mc-btn" id="mc-report" disabled>Report</button></div></div><div id="mc-messages" class="mc-messages"><div class="mc-empty">Your private messages appear here.</div></div><form id="mc-send" class="mc-send"><input id="mc-text" class="mc-input" placeholder="Write a message…" maxlength="4000" disabled><button class="mc-btn primary" id="mc-send-btn" disabled>Send</button></form><div style="padding:0 11px 9px"><small id="mc-status" role="status" style="color:#a8c3d8">MetConnect ready.</small></div><div class="mc-body mc-call-controls" id="mc-call-controls"><div class="mc-actions"><button class="mc-btn" data-call="screen" disabled>Start Share Screen Call</button><button class="mc-btn" data-call="voice" disabled>Start Voice Call</button><button class="mc-btn" data-call="video" disabled>Start Video Call</button></div><p class="mc-note">A screen call starts screen sharing for the caller. After answering, the other person can hold or share their own screen.</p></div></section></div></section></div>';
+'<section id="mc-main" class="mc-hidden"><nav class="mc-menu"><button type="button" class="active" data-tab="contacts">Saved Usernames</button><button type="button" data-tab="talk">Talk</button><button type="button" data-tab="screen">Share Screen Call</button><button type="button" data-tab="voice">Voice Call</button><button type="button" data-tab="video">Video Call</button><button type="button" data-tab="bun">B-UN</button></nav><div id="mc-tab-help" class="mc-note" style="padding:10px 14px;margin:0;background:#091a29;border-bottom:1px solid #294157">Choose a saved username to view messages.</div><section id="mc-bun-account" class="mc-hidden" style="padding:12px;background:#0b1d2c;border-bottom:1px solid #294157"></section><div class="mc-grid"><aside class="mc-panel"><div class="mc-head"><b id="mc-list-title">Saved Usernames</b><span class="pill" id="mc-count">0</span></div><div class="mc-body"><form id="mc-add" class="mc-form"><input class="mc-input" id="mc-username" placeholder="Metxon username" maxlength="80" required><button class="mc-btn primary">Add</button></form><div id="mc-contacts" class="mc-contacts"><div class="mc-empty">Loading usernames…</div></div></div></aside><section class="mc-panel mc-chat"><div class="mc-head"><div><b id="mc-title">Choose a username</b><small id="mc-subtitle" style="display:block;color:#9bb3c8">End-to-end encrypted chats · messages auto-delete after 30 days</small></div><div class="mc-actions"><button class="mc-btn" id="mc-remove" disabled>Remove</button><button class="mc-btn danger" id="mc-block" disabled>Block</button><button class="mc-btn" id="mc-report" disabled>Report</button></div></div><div id="mc-messages" class="mc-messages"><div class="mc-empty">Your private messages appear here.</div></div><form id="mc-send" class="mc-send"><input id="mc-text" class="mc-input" placeholder="Write a message…" maxlength="4000" disabled><button class="mc-btn primary" id="mc-send-btn" disabled>Send</button></form><div style="padding:0 11px 9px"><small id="mc-status" role="status" style="color:#a8c3d8">MetConnect ready.</small></div><div class="mc-body mc-call-controls" id="mc-call-controls"><div class="mc-actions"><button class="mc-btn" data-call="screen" disabled>Start Share Screen Call</button><button class="mc-btn" data-call="voice" disabled>Start Voice Call</button><button class="mc-btn" data-call="video" disabled>Start Video Call</button></div><p class="mc-note">A screen call starts screen sharing for the caller. After answering, the other person can hold or share their own screen.</p></div></section></div></section></div>';
 }
 function ensureLayer(){
 if(!document.getElementById('mc-global-style')){
@@ -184,6 +184,77 @@ document.getElementById('mc-send-btn').disabled=!p;
 if(kind==='bunClient')await refreshBunContacts();else if(kind==='regular'||kind==='bun')await refreshContacts();
 await loadMessages(MC.selected);
 }
+const MC_CRYPTO_DB='metconnect-crypto-v1';
+function cryptoDb(){
+ return new Promise((resolve,reject)=>{
+  const req=indexedDB.open(MC_CRYPTO_DB,1);
+  req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('keys'))req.result.createObjectStore('keys');};
+  req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+ });
+}
+async function cryptoRecord(){
+ const db=await cryptoDb();return new Promise((resolve,reject)=>{
+  const req=db.transaction('keys','readonly').objectStore('keys').get(profile.id);
+  req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);
+ });
+}
+async function storeCryptoRecord(value){
+ const db=await cryptoDb();return new Promise((resolve,reject)=>{
+  const tx=db.transaction('keys','readwrite');tx.objectStore('keys').put(value,profile.id);
+  tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+ });
+}
+async function ensureEncryptionIdentity(){
+ if(!window.crypto?.subtle||!window.indexedDB)throw Error('This browser does not support MetConnect end-to-end encryption. Update your browser.');
+ let saved=await cryptoRecord();
+ if(!saved?.privateKey||!saved?.publicJwk){
+  const pair=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']);
+  const privateJwk=await crypto.subtle.exportKey('jwk',pair.privateKey);
+  const privateKey=await crypto.subtle.importKey('jwk',privateJwk,{name:'ECDH',namedCurve:'P-256'},false,['deriveBits']);
+  const publicJwk=await crypto.subtle.exportKey('jwk',pair.publicKey);
+  saved={privateKey,publicJwk};await storeCryptoRecord(saved);
+ }
+ MC.cryptoPrivateKey=saved.privateKey;MC.cryptoPublicJwk=saved.publicJwk;
+ const result=await sb.from('metconnect_encryption_keys').upsert(
+  {user_id:profile.id,public_key:saved.publicJwk,updated_at:new Date().toISOString()},
+  {onConflict:'user_id'}
+ );
+ if(result.error)throw result.error;
+ MC.cryptoReady=true;
+}
+async function peerEncryptionKey(userId){
+ if(MC.cryptoPeerCache?.[userId])return MC.cryptoPeerCache[userId];
+ const r=await sb.rpc('metconnect_get_encryption_key',{p_user_id:userId});
+ if(r.error)throw r.error;
+ if(!r.data)throw Error('The other person needs to open MetConnect once to activate encrypted messaging.');
+ MC.cryptoPeerCache=MC.cryptoPeerCache||{};MC.cryptoPeerCache[userId]=r.data;return r.data;
+}
+async function sharedMessageKey(peerId){
+ if(!MC.cryptoPrivateKey)await ensureEncryptionIdentity();
+ const peerJwk=await peerEncryptionKey(peerId);
+ const peerKey=await crypto.subtle.importKey('jwk',peerJwk,{name:'ECDH',namedCurve:'P-256'},false,[]);
+ const bits=await crypto.subtle.deriveBits({name:'ECDH',public:peerKey},MC.cryptoPrivateKey,256);
+ const material=await crypto.subtle.importKey('raw',bits,'HKDF',false,['deriveKey']);
+ const ids=[profile.id,peerId].sort().join(':');
+ return crypto.subtle.deriveKey(
+  {name:'HKDF',hash:'SHA-256',salt:new TextEncoder().encode('MetConnect E2EE v1'),info:new TextEncoder().encode(ids)},
+  material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
+ );
+}
+async function encryptMessageText(plain,peerId){
+ const key=await sharedMessageKey(peerId),iv=crypto.getRandomValues(new Uint8Array(12));
+ const data=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(plain));
+ return 'mc1:'+btoa(JSON.stringify({iv:Array.from(iv),data:Array.from(new Uint8Array(data))}));
+}
+async function decryptMessageText(body,peerId){
+ if(!String(body||'').startsWith('mc1:'))return body;
+ try{
+  const packed=JSON.parse(atob(body.slice(4)));
+  const key=await sharedMessageKey(peerId);
+  const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:new Uint8Array(packed.iv)},key,new Uint8Array(packed.data));
+  return new TextDecoder().decode(plain);
+ }catch(e){console.warn('MetConnect message decryption failed:',e);return 'Unable to decrypt this message on this device. Check that you are using the same MetConnect device/key.';}
+}
 function renderMessages(rows){
 const box=document.getElementById('mc-messages');if(!box)return;if(!rows.length){box.innerHTML='<div class="mc-empty">No messages yet. Send the first message.</div>';return;}box.innerHTML=rows.map(m=>{
  const bun=m.sender_bun_id?(m.sender_id===profile.id?MC.ownBun:MC.bunContacts.find(x=>x.bun_id===m.sender_bun_id)):null;
@@ -194,12 +265,12 @@ const box=document.getElementById('mc-messages');if(!box)return;if(!rows.length)
 }
 async function loadMessages(id){
 const box=document.getElementById('mc-messages');if(!id){if(box)box.innerHTML='<div class="mc-empty">Choose a saved username.</div>';return;}
-try{const [a,b]=await Promise.all([sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,body,created_at').eq('sender_id',profile.id).eq('recipient_id',id).order('created_at').limit(150),sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,body,created_at').eq('sender_id',id).eq('recipient_id',profile.id).order('created_at').limit(150)]);if(a.error)throw a.error;if(b.error)throw b.error;renderMessages([...(a.data||[]),...(b.data||[])].sort((x,y)=>new Date(x.created_at)-new Date(y.created_at)).slice(-200));}
+try{const [a,b]=await Promise.all([sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,recipient_bun_id,body,created_at').eq('sender_id',profile.id).eq('recipient_id',id).order('created_at').limit(150),sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,recipient_bun_id,body,created_at').eq('sender_id',id).eq('recipient_id',profile.id).order('created_at').limit(150)]);if(a.error)throw a.error;if(b.error)throw b.error;const rows=[...(a.data||[]),...(b.data||[])].sort((x,y)=>new Date(x.created_at)-new Date(y.created_at)).slice(-200);for(const m of rows){const peerId=m.sender_id===profile.id?m.recipient_id:m.sender_id;m.body=await decryptMessageText(m.body,peerId);}renderMessages(rows);}
 catch(e){if(box)box.innerHTML='<div class="mc-empty">Could not load messages: '+esc(e.message)+'</div>';}
 }
 async function sendMessage(e){
 e.preventDefault();const input=document.getElementById('mc-text'),body=input.value.trim();if(!MC.selected||!body)return;input.disabled=true;
-try{if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))throw Error('Choose an active B-UN and make sure your membership is active before messaging.');const r=await sb.from('metconnect_messages').insert({sender_id:profile.id,recipient_id:MC.selected,sender_bun_id:MC.currentTab==='bun'?MC.ownBun?.id:null,recipient_bun_id:MC.selectedKind==='bun'?MC.selectedBunId:null,body});if(r.error)throw r.error;input.value='';await loadMessages(MC.selected);status('Message sent.');}
+try{if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))throw Error('Choose an active B-UN and make sure your membership is active before messaging.');if(!MC.cryptoReady)await ensureEncryptionIdentity();const encryptedBody=await encryptMessageText(body,MC.selected);const r=await sb.from('metconnect_messages').insert({sender_id:profile.id,recipient_id:MC.selected,sender_bun_id:MC.currentTab==='bun'?MC.ownBun?.id:null,recipient_bun_id:MC.selectedKind==='bun'?MC.selectedBunId:null,body:encryptedBody});if(r.error)throw r.error;input.value='';await loadMessages(MC.selected);status('Message sent.');}
 catch(x){status(x.message||'Message could not be sent.',true);}finally{input.disabled=false;input.focus();}
 }
 async function removeContact(){if(!MC.selected)return;const p=person(MC.selected);if(MC.selectedKind==='bun'){if(!confirm('Remove @'+(p?.username||'this B-UN')+' from saved business usernames?'))return;const r=await sb.rpc('metconnect_bun_remove_contact',{p_bun_id:MC.selectedBunId});if(r.error)return status(r.error.message,true);MC.selected=null;MC.selectedBunId=null;MC.activeBunContact=null;await refreshContacts();await loadMessages(null);return status('Business username removed.');}if(MC.selectedKind==='bunClient'){if(!confirm('Remove this customer from your B-UN saved contacts?'))return;const r=await sb.rpc('metconnect_bun_remove_client',{p_user_id:MC.selected,p_bun_id:MC.selectedBunId});if(r.error)return status(r.error.message,true);MC.selected=null;MC.selectedBunId=null;MC.activeBunClient=null;await refreshBunContacts();await loadMessages(null);return status('Customer removed from this B-UN contact list.');}if(!confirm('Remove @'+(p?.username||'this user')+'?'))return;const r=await sb.from('metconnect_contacts').delete().eq('owner_id',profile.id).eq('contact_id',MC.selected);if(r.error)return status(r.error.message,true);MC.selected=null;await refreshContacts();await loadMessages(null);status('Contact removed.');}
@@ -244,6 +315,7 @@ if(!profile?.id)return;
 ensureLayer();
 if(!MC.setup){try{await loadSetup();}catch(e){console.warn('MetConnect setup status:',e);return;}}
 if(!MC.setup)return;
+try{await ensureEncryptionIdentity();}catch(e){console.warn('MetConnect encryption setup:',e);status('Encrypted messaging setup needs attention: '+(e.message||'unsupported browser'),true);}
 await syncPushSubscription();
 try{const bunList=await sb.rpc('metconnect_bun_list_contacts');if(!bunList.error)MC.bunContacts=Array.isArray(bunList.data)?bunList.data:[];await loadBunStatus();}catch(e){console.warn('B-UN contacts:',e);}
 if(!MC.incomingChannel){
