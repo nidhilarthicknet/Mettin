@@ -196,6 +196,7 @@ document.getElementById('mc-title').textContent=name?'@'+name:'Choose a username
 document.getElementById('mc-subtitle').textContent=p?(p.business_name||p.display_name||'Metxon user')+' · '+(kind==='bun'?'B-UN business contact':'MetConnect'):'Save a username to start texting';
 document.getElementById('mc-text').disabled=!p;
 document.getElementById('mc-send-btn').disabled=!p;
+if(MC.currentTab==='talk'){const composer=document.getElementById('mc-send'),back=document.getElementById('mc-chat-back');if(composer)composer.classList.toggle('mc-hidden',!p);if(back)back.classList.toggle('mc-hidden',!p);}
 if(kind==='bunClient')await refreshBunContacts();else if(kind==='regular'||kind==='bun')await refreshContacts();
 await loadMessages(MC.selected);
 const grid=document.querySelector('#mc-root .mc-grid');if(grid&&MC.currentTab==='talk')grid.classList.add('mc-chat-focus');
@@ -516,7 +517,7 @@ const setTab=tab=>{
  const selected=person(MC.selected);
  if(title)title.textContent=selected?'@'+selected.username:(tab==='contacts'?'Saved Usernames':'Choose a username');
  if(subtitle)subtitle.textContent=selected?(selected.display_name||'Metxon user')+' · MetConnect':(tab==='talk'?'Choose a username to start a private chat.':'Select a saved username first.');
- if(composer)composer.classList.toggle('mc-hidden',!['talk','contacts','bun'].includes(tab));
+ if(composer)composer.classList.toggle('mc-hidden',!(tab==='contacts'||tab==='bun'||(tab==='talk'&&!!MC.selected)));
  if(messages)messages.classList.toggle('mc-hidden',!['talk','contacts','bun'].includes(tab));
  const back=document.getElementById('mc-chat-back');if(back){back.classList.toggle('mc-hidden',tab!=='talk'||!MC.selected);back.onclick=()=>{MC.selected=null;MC.selectedBunId=null;MC.activeBunContact=null;MC.activeBunClient=null;MC.selectedKind='regular';setTab('talk');};}
  if(tab==='talk'&&!MC.selected){const text=document.getElementById('mc-text'),send=document.getElementById('mc-send-btn');if(text)text.disabled=true;if(send)send.disabled=true;renderTalkChooser();}
