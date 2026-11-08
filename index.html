@@ -162,6 +162,7 @@ async function verifyMetAccountCredentials(username,password,expectedUserId){
   try{await verifier.auth.signOut();}catch(e){}
  }
 }
+window.verifyMetAccountCredentials=verifyMetAccountCredentials;
 async function ensureMetAccountConnect(){
  if(!profile?.id||!profile.created_at||new Date(profile.created_at).getTime()<Date.parse(METACCOUNT_CONNECT_CUTOFF))return true;
  if(metAccountConnectPromise)return metAccountConnectPromise;
