@@ -415,15 +415,16 @@ const setTab=tab=>{
   screen:'Share Screen Call: select a contact, then tap Start Share Screen Call below.',
   voice:'Voice Call: select a contact, then tap Start Voice Call below.',
   video:'Video Call: select a contact, then tap Start Video Call below.',
-  bun:'B-UN: manage your business username and message or voice-call people who saved it.'
+  bun:'B-UN: select one of your business handles to see people who chose to save it. Message or voice-call those customers only.'
  };
  if(help){help.textContent=titles[tab]||titles.contacts;help.classList.toggle('mc-hidden',tab==='talk'||tab==='bun');}
   const bunAccount=document.getElementById('mc-bun-account');if(bunAccount){bunAccount.classList.toggle('mc-hidden',tab!=='bun');if(tab==='bun')loadBunStatus();}
-  const listTitle=document.getElementById('mc-list-title');if(listTitle)listTitle.textContent=tab==='bun'?'B-UN Contacts':'Saved Usernames';
+  const listTitle=document.getElementById('mc-list-title');if(listTitle)listTitle.textContent=tab==='bun'?'People who saved your B-UN':'Saved Usernames';
   const addInput=document.getElementById('mc-username');if(addInput)addInput.placeholder=tab==='bun'?'Business username (B-UN)':'Metxon username';
   const addForm=document.getElementById('mc-add');if(addForm)addForm.classList.toggle('mc-hidden',tab==='bun');const addButton=document.querySelector('#mc-add button');if(addButton)addButton.textContent='Add';
   const callControls=document.getElementById('mc-call-controls');if(callControls)callControls.classList.toggle('mc-hidden',!['screen','voice','video','bun'].includes(tab));
   root.querySelectorAll('[data-call]').forEach(b=>b.classList.toggle('mc-hidden',tab==='bun'?b.dataset.call!=='voice':!['screen','voice','video'].includes(tab)||b.dataset.call!==tab));
+ const bunListTitle=document.getElementById('mc-list-title');if(bunListTitle&&tab==='bun')bunListTitle.textContent=MC.ownBun?'Saved by customers of @'+MC.ownBun.username:'People who saved your B-UN';
  const title=document.getElementById('mc-title');
  const subtitle=document.getElementById('mc-subtitle');
  const selected=person(MC.selected);
