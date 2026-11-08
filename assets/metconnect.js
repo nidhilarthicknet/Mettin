@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 if(window.__metconnectCodeLoaded)return;window.__metconnectCodeLoaded=true;
-const MC=window.__metconnect={setup:false,currentTab:'contacts',contacts:[],bunContacts:[],bunClients:[],ownBun:null,bunStatus:null,selected:null,selectedKind:'regular',selectedBunId:null,active:null,incoming:null,peer:null,local:null,screen:null,remote:null,ice:[],signals:null,incomingChannel:null,messageChannel:null,audio:null,ring:null,ringTimer:null,timeout:null,busy:false,held:false,mic:true,cam:true,speaker:null,pushReady:false,ringtoneEnabled:true};
+const MC=window.__metconnect={setup:false,currentTab:'contacts',contacts:[],bunContacts:[],bunClients:[],bunProfiles:[],ownBun:null,bunStatus:null,editingBunId:null,selected:null,selectedKind:'regular',selectedBunId:null,active:null,incoming:null,peer:null,local:null,screen:null,remote:null,ice:[],signals:null,incomingChannel:null,messageChannel:null,audio:null,ring:null,ringTimer:null,timeout:null,busy:false,held:false,mic:true,cam:true,speaker:null,pushReady:false,ringtoneEnabled:true};
 const labels={talk:'Talk',screen:'Share Screen Call',voice:'Voice Call',video:'Video Call'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const person=id=>MC.selectedKind==='bun'?(MC.bunContacts.find(x=>x.owner_id===id)||MC.contacts.find(x=>x.contact_id===id)||null):MC.selectedKind==='bunClient'?(MC.bunClients.find(x=>x.owner_id===id)||null):(MC.contacts.find(x=>x.contact_id===id)||MC.bunContacts.find(x=>x.owner_id===id)||null);
@@ -319,7 +319,10 @@ async function refreshBunContacts(){
 async function loadBunStatus(){
  const r=await sb.rpc('metconnect_bun_status');
  if(r.error){status(r.error.message,true);return;}
- MC.bunStatus=r.data||{};MC.ownBun=MC.bunStatus.bun||null;
+ MC.bunStatus=r.data||{};
+ MC.bunProfiles=Array.isArray(MC.bunStatus.buns)?MC.bunStatus.buns:[];
+ MC.ownBun=MC.bunProfiles.find(b=>b.id===MC.ownBun?.id)||MC.bunProfiles[0]||null;
+ MC.editingBunId=null;
  renderBunAccount();
  await refreshBunContacts();
 }
@@ -331,12 +334,24 @@ function renderBunAccount(){
  const plan=active?(ent.tier==='trial'?'2-day trial':'MetConnect+'):'No active plan';
  const buy=active?'<button class="mc-btn primary" type="button" id="mc-bun-buy-plus">Renew / upgrade · π30 per month</button>':
   (!ent.trial_used?'<button class="mc-btn primary" type="button" id="mc-bun-buy-trial">Start 2-day B-UN trial · π2</button>':'<button class="mc-btn primary" type="button" id="mc-bun-buy-plus">Subscribe to MetConnect+ · π30 per month</button>');
- root.innerHTML='<div class="mc-bun-card"><div class="mc-bun-label">METCONNECT BUSINESS USERNAMES</div><h3 style="margin:5px 0 8px">B-UN</h3><p class="mc-note">Use a separate public business handle for customer messages and voice calls. People must add your B-UN before you can contact them. Video calls and screen sharing are disabled in B-UN mode.</p>'+membership+'<div class="mc-bun-grid" style="margin-top:10px"><div><b>'+esc(plan)+'</b><div class="mc-bun-label">'+(active?'Membership expiry: '+esc(expiry):'Trial: π2 for 2 days · MetConnect+: π30/month')+'</div></div><div><input class="mc-input" type="password" id="mc-bun-metpay" placeholder="MetPay transaction password" autocomplete="current-password" maxlength="128"></div></div><div class="mc-bun-actions" style="margin-top:9px">'+buy+'</div><small class="mc-note">Monthly access is renewed by confirming the π30 payment. It is not charged silently in the background.</small></div>'+
-  '<div class="mc-bun-card"><h3>'+(bun?'Your business identity':'Change to B-UN')+'</h3><p class="mc-note">'+(bun?'Change your public B-UN handle at any time. Existing blocks remain attached to the business account, not the displayed handle.':'Verify your existing Metxon username and password to create your business identity. Your password is checked for this session and is not stored in the B-UN profile.')+'</p><div class="mc-bun-grid"><div><label class="mc-bun-label" for="mc-bun-account-username">Metxon username</label><input class="mc-input" id="mc-bun-account-username" maxlength="80" autocomplete="username" placeholder="Your Metxon username" value="'+esc(profile.username||'')+'"></div><div><label class="mc-bun-label" for="mc-bun-account-password">Metxon account password</label><input class="mc-input" id="mc-bun-account-password" type="password" maxlength="128" autocomplete="current-password" placeholder="Verify account password"></div><div><label class="mc-bun-label" for="mc-bun-handle">B-UN username</label><input class="mc-input" id="mc-bun-handle" maxlength="32" placeholder="business_handle" value="'+esc(bun?.username||'')+'"></div><div><label class="mc-bun-label" for="mc-bun-business-name">Business / display name</label><input class="mc-input" id="mc-bun-business-name" maxlength="60" placeholder="Your business name" value="'+esc(bun?.business_name||'')+'"></div></div><div class="mc-bun-actions" style="margin-top:10px"><button class="mc-btn primary" id="mc-bun-save" type="button">'+(bun?'Verify and change B-UN username':'Verify and change to B-UN')+'</button></div><small class="mc-note" id="mc-bun-account-status" role="status"></small></div>';
- const trial=document.getElementById('mc-bun-buy-trial'),plus=document.getElementById('mc-bun-buy-plus'),save=document.getElementById('mc-bun-save');
+ const profiles=MC.bunProfiles.map(b=>'<div class="mc-person"><span><b>@'+esc(b.username)+'</b><small>'+esc(b.business_name)+'</small></span><span><button type="button" class="mc-btn" data-bun-use="'+esc(b.id)+'">'+(bun?.id===b.id?'Using':'Use')+'</button> <button type="button" class="mc-btn" data-bun-edit="'+esc(b.id)+'">Rename</button></span></div>').join('');
+ root.innerHTML='<div class="mc-bun-card"><div class="mc-bun-label">METCONNECT BUSINESS USERNAMES</div><h3 style="margin:5px 0 8px">B-UN</h3><p class="mc-note">Create multiple public business handles for your business. People must save a particular B-UN before it can message or voice-call them. Video calls and screen sharing are disabled in B-UN mode. Blocks apply to your Metxon business account, even if you create or rename another handle.</p>'+membership+'<div class="mc-bun-grid" style="margin-top:10px"><div><b>'+esc(plan)+'</b><div class="mc-bun-label">'+(active?'Membership expiry: '+esc(expiry):'Trial: π2 for 2 days · MetConnect+: π30/month')+'</div></div><div><input class="mc-input" type="password" id="mc-bun-metpay" placeholder="MetPay transaction password" autocomplete="current-password" maxlength="128"></div></div><div class="mc-bun-actions" style="margin-top:9px">'+buy+'</div><small class="mc-note">The π30 monthly plan is renewed by confirming the payment. No silent recurring charge is made.</small></div>'+
+  '<div class="mc-bun-card"><h3>Your B-UN numbers</h3>'+(profiles||'<p class="mc-note">No business usernames yet.</p>')+'<div class="mc-bun-actions" style="margin-top:9px"><button class="mc-btn" id="mc-bun-new" type="button">Create another B-UN</button></div></div>'+
+  '<div class="mc-bun-card"><h3>'+(MC.editingBunId?'Rename B-UN':'Create a B-UN')+'</h3><p class="mc-note">Verify your Metxon account password again before creating or renaming a public business identity. Your password is never stored in the B-UN profile.</p><div class="mc-bun-grid"><div><label class="mc-bun-label" for="mc-bun-account-username">Metxon username</label><input class="mc-input" id="mc-bun-account-username" maxlength="80" autocomplete="username" placeholder="Your Metxon username" value="'+esc(profile.username||'')+'"></div><div><label class="mc-bun-label" for="mc-bun-account-password">Metxon account password</label><input class="mc-input" id="mc-bun-account-password" type="password" maxlength="128" autocomplete="current-password" placeholder="Verify account password"></div><div><label class="mc-bun-label" for="mc-bun-handle">B-UN username</label><input class="mc-input" id="mc-bun-handle" maxlength="32" placeholder="business_handle" value="'+esc(MC.editingBunId?MC.bunProfiles.find(x=>x.id===MC.editingBunId)?.username||'':'')+'"></div><div><label class="mc-bun-label" for="mc-bun-business-name">Business / display name</label><input class="mc-input" id="mc-bun-business-name" maxlength="60" placeholder="Your business name" value="'+esc(MC.editingBunId?MC.bunProfiles.find(x=>x.id===MC.editingBunId)?.business_name||'':'')+'"></div></div><div class="mc-bun-actions" style="margin-top:10px"><button class="mc-btn primary" id="mc-bun-save" type="button">'+(MC.editingBunId?'Verify and rename B-UN':'Verify and create B-UN')+'</button></div><small class="mc-note" id="mc-bun-account-status" role="status"></small></div>';
+ const trial=document.getElementById('mc-bun-buy-trial'),plus=document.getElementById('mc-bun-buy-plus'),save=document.getElementById('mc-bun-save'),add=document.getElementById('mc-bun-new');
  if(trial)trial.onclick=()=>purchaseBun('trial');
  if(plus)plus.onclick=()=>purchaseBun('plus');
  if(save)save.onclick=saveBunIdentity;
+ if(add)add.onclick=()=>{MC.editingBunId=null;renderBunAccount();};
+ root.querySelectorAll('[data-bun-use]').forEach(b=>b.onclick=()=>{
+  MC.ownBun=MC.bunProfiles.find(x=>x.id===b.dataset.bunUse)||null;
+  MC.bunStatus.bun=MC.ownBun;renderBunAccount();refreshBunContacts();
+  status(MC.ownBun?'Using @'+MC.ownBun.username+'.':'Choose a B-UN.');
+ });
+ root.querySelectorAll('[data-bun-edit]').forEach(b=>b.onclick=()=>{
+  MC.editingBunId=b.dataset.bunEdit;renderBunAccount();
+  document.getElementById('mc-bun-handle')?.focus();
+ });
 }
 async function purchaseBun(type){
  const password=document.getElementById('mc-bun-metpay')?.value||'';
@@ -350,6 +365,7 @@ async function purchaseBun(type){
 async function saveBunIdentity(){
  const username=document.getElementById('mc-bun-account-username')?.value.trim()||'';
  const password=document.getElementById('mc-bun-account-password')?.value||'';
+ const metpayPassword=document.getElementById('mc-bun-metpay')?.value||'';
  const handle=document.getElementById('mc-bun-handle')?.value.trim()||'';
  const business=document.getElementById('mc-bun-business-name')?.value.trim()||'';
  const out=document.getElementById('mc-bun-account-status');
@@ -358,10 +374,17 @@ async function saveBunIdentity(){
   if(typeof window.verifyMetAccountCredentials!=='function')throw new Error('Secure Metxon account verification is unavailable. Reload Mettin and try again.');
   if(!username||!password)throw new Error('Enter your Metxon username and account password.');
   await window.verifyMetAccountCredentials(username,password,profile.id);
-  const r=await sb.rpc('metconnect_bun_save_identity',{p_username:handle,p_business_name:business,p_metxon_username:username});
+  const r=await sb.rpc('metconnect_bun_save_identity',{
+   p_username:handle,p_business_name:business,p_metxon_username:username,
+   p_metxon_password:password,p_bun_id:MC.editingBunId
+  });
   if(r.error)throw r.error;
-  const p=document.getElementById('mc-bun-account-password');if(p)p.value='';
-  await loadBunStatus();status('Your B-UN identity is saved. Changing the handle will not remove existing blocks.');
+  const input=document.getElementById('mc-bun-account-password');if(input)input.value='';
+  await loadBunStatus();
+  MC.ownBun=MC.bunProfiles.find(x=>x.id===r.data.id)||MC.ownBun;
+  MC.bunStatus.bun=MC.ownBun;
+  MC.editingBunId=null;renderBunAccount();await refreshBunContacts();
+  status('B-UN @'+r.data.username+' saved. Account-level blocks remain in place across all your B-UN handles.');
  }catch(e){if(out)out.textContent=e.message||'Could not save B-UN identity.';status(e.message||'Could not save B-UN identity.',true);}
 }
 async function addBunContact(e){
