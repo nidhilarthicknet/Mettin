@@ -164,9 +164,20 @@ try{const r=await sb.from('metconnect_preferences').upsert({user_id:profile.id,s
 catch(e){const el=document.getElementById('mc-setup-status');if(el)el.textContent=e.message||'Setup could not be saved.';}
 }
 async function refreshContacts(){
-const r=await sb.rpc('metconnect_list_contacts');if(r.error)throw r.error;const normalContacts=Array.isArray(r.data)?r.data:[];const buns=await sb.rpc('metconnect_bun_list_contacts');MC.bunContacts=buns.error?[]:(Array.isArray(buns.data)?buns.data:[]);MC.contacts=normalContacts.concat(MC.bunContacts.map(b=>({contact_id:b.owner_id,username:b.username,display_name:b.business_name,is_bun:true,bun_id:b.bun_id,foul_un:b.foul_un})));
-const list=document.getElementById('mc-contacts');if(list){list.innerHTML=MC.contacts.map(c=>'<button class="mc-person'+(c.contact_id===MC.selected?' active':'')+'" data-id="'+esc(c.contact_id)+'" data-kind="'+(c.is_bun?'bun':'regular')+'" data-bun-id="'+esc(c.bun_id||'')+'"><span><b>@'+esc(c.username)+'</b><small>'+esc(c.display_name||(c.is_bun?'Business username':'Metxon user'))+'</small>'+(c.foul_un&&String(c.foul_un).startsWith('Foul UN')?'<small class="mc-bun-chip warn">'+esc(c.foul_un)+'</small>':'')+'</span><span>›</span></button>').join('')||'<div class="mc-empty">No saved usernames yet. Add a user who has installed MetConnect.</div>';list.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>selectContact(b.dataset.id,b.dataset.kind||'regular',b.dataset.bunId||null));}
-document.getElementById('mc-count').textContent=String(MC.contacts.length);document.querySelectorAll('[data-call]').forEach(b=>b.disabled=!MC.selected);['mc-remove','mc-block','mc-report'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!MC.selected;});
+ const r=await sb.rpc('metconnect_list_contacts');if(r.error)throw r.error;
+ const normalContacts=Array.isArray(r.data)?r.data:[];
+ const buns=await sb.rpc('metconnect_bun_list_contacts');
+ MC.bunContacts=buns.error?[]:(Array.isArray(buns.data)?buns.data:[]);
+ MC.contacts=normalContacts.concat(MC.bunContacts.map(b=>({contact_id:b.owner_id,username:b.username,display_name:b.business_name,is_bun:true,bun_id:b.bun_id,foul_un:b.foul_un})));
+ const visible=MC.currentTab==='bun'?normalContacts:MC.contacts;
+ const list=document.getElementById('mc-contacts');
+ if(list){
+  list.innerHTML=visible.map(c=>'<button class="mc-person'+(c.contact_id===MC.selected?' active':'')+'" data-id="'+esc(c.contact_id)+'" data-kind="'+(c.is_bun?'bun':'regular')+'" data-bun-id="'+esc(c.bun_id||'')+'"><span><b>@'+esc(c.username)+'</b><small>'+esc(c.display_name||(c.is_bun?'Business username':'Metxon user'))+'</small>'+(c.foul_un&&String(c.foul_un).startsWith('Foul UN')?'<small class="mc-bun-chip warn">'+esc(c.foul_un)+'</small>':'')+'</span><span>›</span></button>').join('')||'<div class="mc-empty">'+(MC.currentTab==='bun'?'Save a MetConnect username first.':'No saved usernames yet. Add a Metxon username above.')+'</div>';
+  list.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>selectContact(b.dataset.id,b.dataset.kind||'regular',b.dataset.bunId||null));
+ }
+ const count=document.getElementById('mc-count');if(count)count.textContent=String(visible.length);
+ document.querySelectorAll('[data-call]').forEach(b=>b.disabled=!MC.selected);
+ ['mc-remove','mc-block','mc-report'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!MC.selected;});
 }
 async function addContact(e){
 e.preventDefault();if(MC.currentTab==='bun')return addBunContact(e);const input=document.getElementById('mc-username'),username=input.value.trim();if(!username)return;status('Checking Metxon username…');
@@ -290,14 +301,14 @@ pc.onicecandidate=e=>{if(!e.candidate)return;const c=e.candidate.toJSON?e.candid
 pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected'){stopOutgoing();if(MC.active)MC.active.status='accepted';showStage();setStageStatus('Connected peer-to-peer.');}if(pc.connectionState==='failed')setStageStatus('Connection failed. A TURN relay may be needed on this network.');};return pc;
 }
 async function startCall(mode){
-if(MC.busy||MC.active||MC.incoming)return;const c=person(MC.selected);if(!c)return status('Choose a saved username.',true);if((MC.currentTab==='bun'||MC.selectedKind==='bun')&&mode!=='voice')return status('B-UN supports voice calls and messages only. Video and screen sharing are disabled.',true);if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))return status('Choose an active B-UN and make sure your membership is active before calling.',true);MC.busy=true;let local=null,screen=null;
+if(MC.busy||MC.active||MC.incoming)return;const c=person(MC.selected);if(!c)return status('Choose a saved username.',true);if(MC.currentTab==='bun'&&mode!=='voice')return status('B-UN supports voice calls and messages only. Video and screen sharing are disabled.',true);if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))return status('Choose an active B-UN and make sure your membership is active before calling.',true);MC.busy=true;let local=null,screen=null;
 try{
 let screenPromise=null;if(mode==='screen'){screenPromise=metconnectDisplayCapture()({video:true,audio:false});}
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
 const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:true,video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
 local.getTracks().forEach(t=>pc.addTrack(t,local));if(screen)screen.getTracks().forEach(t=>pc.addTrack(t,screen));
 const offer=await pc.createOffer();await pc.setLocalDescription(offer);
-const calleeId=c.contact_id||c.owner_id;if(!calleeId)throw Error('The saved contact could not be resolved.');
+const calleeId=c.contact_id||c.owner_id;if(!calleeId)throw Error('The saved contact could not be resolved.');if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))throw Error('Activate your B-UN plan before calling.');
 const row=await sb.from('metconnect_calls').insert({caller_id:profile.id,callee_id:calleeId,caller_bun_id:MC.currentTab==='bun'?MC.ownBun?.id:null,callee_bun_id:MC.selectedKind==='bun'?MC.selectedBunId:null,call_mode:mode,status:'ringing',offer_sdp:{type:pc.localDescription.type,sdp:pc.localDescription.sdp}}).select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at').single();if(row.error)throw row.error;
 MC.active={id:row.data.id,callerId:profile.id,peerId:calleeId,peer:c,mode,role:'caller',status:'ringing'};await subscribeCall(MC.active.id);
 for(const item of MC.ice.splice(0)){const r=await signal(MC.active.id,'ice',item);if(r.error)throw r.error;}
@@ -476,7 +487,7 @@ document.getElementById('mc-add').onsubmit=addContact;document.getElementById('m
 const setTab=tab=>{
  MC.currentTab=tab;
  if((tab==='bun'&&MC.selectedKind!=='bunClient')||(tab!=='bun'&&MC.selectedKind==='bunClient')){MC.selected=null;MC.selectedBunId=null;MC.activeBunContact=null;MC.activeBunClient=null;MC.selectedKind=tab==='bun'?'bunClient':'regular';loadMessages(null);}
- const root=document.getElementById('mc-root');const grid=root.querySelector('.mc-grid');if(grid)grid.classList.toggle('mc-chat-focus',tab==='talk');
+ const root=document.getElementById('mc-root');const grid=root.querySelector('.mc-grid');if(grid)grid.classList.remove('mc-chat-focus');
  root.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
  root.querySelectorAll('[data-call]').forEach(b=>b.classList.toggle('mc-hidden',!['screen','voice','video'].includes(tab)||b.dataset.call!==tab));
  const help=document.getElementById('mc-tab-help');
@@ -505,7 +516,7 @@ const setTab=tab=>{
  if(subtitle)subtitle.textContent=selected?(selected.display_name||'Metxon user')+' · MetConnect':(tab==='talk'?'Choose a username to start a private chat.':'Select a saved username first.');
  if(composer)composer.classList.toggle('mc-hidden',!['talk','contacts','bun'].includes(tab));
  if(messages)messages.classList.toggle('mc-hidden',!['talk','contacts','bun'].includes(tab));
- if(tab==='bun'){refreshBunContacts();status('Business usernames selected. Only people who saved your B-UN can be contacted.');}else status(tab==='contacts'?'Saved usernames and conversations.':tab==='talk'?'Private messaging selected.':titles[tab]||'Choose a tab.');
+ if(tab==='bun'){refreshContacts();status('B-UN mode: choose a saved username. Your paid business identity will be shown to the recipient.');}else {refreshContacts();status(tab==='contacts'?'Saved usernames and conversations.':tab==='talk'?'Private messaging selected.':titles[tab]||'Choose a tab.');}
 };
 document.getElementById('mc-root').querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 setTab(MC.currentTab||'contacts');
