@@ -62,6 +62,8 @@ Deno.serve(async (req: Request) => {
 
   let recipientId = "";
   let senderId = "";
+  let senderBunId: string | null = null;
+  let recipientBunId: string | null = null;
   let title = "MetConnect";
   let message = "You have a new MetConnect notification.";
   let tag = "metconnect";
@@ -71,7 +73,7 @@ Deno.serve(async (req: Request) => {
   if (type === "call" || type === "call_update") {
     const { data: call, error } = await admin
       .from("metconnect_calls")
-      .select("id,caller_id,callee_id,call_mode,status,created_at")
+      .select("id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,created_at")
       .eq("id", recordId)
       .maybeSingle();
     if (error) return json({ error: "Could not load call" }, 500);
@@ -83,6 +85,8 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, skipped: "call_still_ringing" });
     }
     recipientId = call.callee_id;
+    senderBunId = call.caller_bun_id || null;
+    recipientBunId = call.callee_bun_id || null;
     tag = "metconnect-call-" + call.id;
     if (type === "call") {
       const createdAt = new Date(call.created_at).getTime();
@@ -99,28 +103,75 @@ Deno.serve(async (req: Request) => {
   } else {
     const { data: row, error } = await admin
       .from("metconnect_messages")
-      .select("id,sender_id,recipient_id")
+      .select("id,sender_id,recipient_id,sender_bun_id,recipient_bun_id")
       .eq("id", recordId)
       .maybeSingle();
     if (error) return json({ error: "Could not load message" }, 500);
     if (!row) return json({ ok: true, skipped: "message_missing" });
     recipientId = row.recipient_id;
     senderId = row.sender_id;
+    senderBunId = row.sender_bun_id || null;
+    recipientBunId = row.recipient_bun_id || null;
     title = "New MetConnect message";
     tag = "metconnect-message-" + row.id;
   }
 
   if (senderId) {
-    const { data: sender, error: senderError } = await admin
-      .from("profiles")
-      .select("username")
-      .eq("id", senderId)
-      .maybeSingle();
-    if (senderError) console.warn("MetConnect sender lookup:", senderError.message);
-    const senderName = sender?.username ? "@" + sender.username : "A Metxon contact";
+    let senderName = "A Metxon contact";
+    if (senderBunId) {
+      const { data: business, error: businessError } = await admin
+        .from("metconnect_bun_profiles")
+        .select("owner_id,username,business_name")
+        .eq("id", senderBunId)
+        .maybeSingle();
+      if (businessError) console.warn("MetConnect B-UN lookup:", businessError.message);
+      if (business?.username) senderName = "@" + business.username;
+      if (business?.owner_id && recipientId) {
+        const { data: entitlement } = await admin
+          .from("metconnect_bun_entitlements")
+          .select("tier,expires_at")
+          .eq("user_id", recipientId)
+          .maybeSingle();
+        const antiBunEnabled = entitlement?.tier === "plus" &&
+          entitlement?.expires_at && new Date(entitlement.expires_at).getTime() > Date.now();
+        if (antiBunEnabled) {
+          const { data: blockRows, error: blockError } = await admin
+            .from("metconnect_bun_blocks")
+            .select("blocker_id")
+            .eq("bun_owner_id", business.owner_id);
+          if (blockError) console.warn("MetConnect AntiBUN lookup:", blockError.message);
+          const count = new Set((blockRows || []).map((x: { blocker_id: string }) => x.blocker_id)).size;
+          const foul = count >= 30 ? "Foul UN 1" :
+            count >= 20 ? "Foul UN 2" :
+            count >= 10 ? "Foul UN 3" :
+            count >= 1 ? "Foul UN 4" : "";
+          if (foul) title += " · " + foul;
+        }
+      }
+    } else {
+      const { data: sender, error: senderError } = await admin
+        .from("profiles")
+        .select("username")
+        .eq("id", senderId)
+        .maybeSingle();
+      if (senderError) console.warn("MetConnect sender lookup:", senderError.message);
+      senderName = sender?.username ? "@" + sender.username : "A Metxon contact";
+    }
     message = type === "call"
       ? senderName + " is calling you."
       : "You have a new message from " + senderName + ".";
+  }
+
+  if (recipientBunId) {
+    const { data: businessTarget, error: targetError } = await admin
+      .from("metconnect_bun_profiles")
+      .select("username")
+      .eq("id", recipientBunId)
+      .maybeSingle();
+    if (targetError) console.warn("MetConnect B-UN recipient lookup:", targetError.message);
+    if (businessTarget?.username && type === "call") {
+      message += " Business line: @" + businessTarget.username + ".";
+    }
   }
 
   const { data: subscriptions, error: subscriptionError } = await admin
