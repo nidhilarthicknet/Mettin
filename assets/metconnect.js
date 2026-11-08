@@ -227,7 +227,7 @@ const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:true,vi
 local.getTracks().forEach(t=>pc.addTrack(t,local));if(screen)screen.getTracks().forEach(t=>pc.addTrack(t,screen));
 const offer=await pc.createOffer();await pc.setLocalDescription(offer);
 const calleeId=c.contact_id||c.owner_id;if(!calleeId)throw Error('The saved contact could not be resolved.');
-const row=await sb.from('metconnect_calls').insert({caller_id:profile.id,callee_id:calleeId,caller_bun_id:MC.currentTab==='bun'?MC.ownBun?.id:null,callee_bun_id:MC.selectedKind==='bun'?MC.selectedBunId:null,call_mode:mode,status:'ringing',offer_sdp:{type:pc.localDescription.type,sdp:pc.localDescription.sdp}}).select('id,caller_id,callee_id,caller_bun_id,call_mode,status,offer_sdp,created_at').single();if(row.error)throw row.error;
+const row=await sb.from('metconnect_calls').insert({caller_id:profile.id,callee_id:calleeId,caller_bun_id:MC.currentTab==='bun'?MC.ownBun?.id:null,callee_bun_id:MC.selectedKind==='bun'?MC.selectedBunId:null,call_mode:mode,status:'ringing',offer_sdp:{type:pc.localDescription.type,sdp:pc.localDescription.sdp}}).select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at').single();if(row.error)throw row.error;
 MC.active={id:row.data.id,callerId:profile.id,peerId:calleeId,peer:c,mode,role:'caller',status:'ringing'};await subscribeCall(MC.active.id);
 for(const item of MC.ice.splice(0)){const r=await signal(MC.active.id,'ice',item);if(r.error)throw r.error;}
 showStage();ringCaller();MC.outgoing=MC.ring;MC.ring=null;status('Calling @'+c.username+'…');
@@ -256,13 +256,13 @@ if(!MC.messageChannel){
   .on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_messages',filter:'recipient_id=eq.'+profile.id},p=>handleIncomingMessage(p.new))
   .subscribe();
 }
-const pending=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,call_mode,status,offer_sdp,created_at')
+const pending=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at')
  .eq('callee_id',profile.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1);
 if(!pending.error&&pending.data?.[0])await handleIncoming(pending.data[0]);
 }
 async function answerIncoming(){
 const call=MC.incoming;if(!call||MC.busy)return;MC.busy=true;let local=null;
-try{hideIncoming();const r=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,call_mode,status,offer_sdp,created_at').eq('id',call.id).eq('callee_id',profile.id).single();if(r.error)throw r.error;if(r.data.status!=='ringing')throw Error('This call is no longer available.');
+try{hideIncoming();const r=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at').eq('id',call.id).eq('callee_id',profile.id).single();if(r.error)throw r.error;if(r.data.status!=='ringing')throw Error('This call is no longer available.');
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
 local=await navigator.mediaDevices.getUserMedia({audio:true,video:r.data.call_mode==='video'});MC.local=local;
 const q=await sb.rpc('metconnect_get_call_peer',{p_call_id:call.id});let peer=Array.isArray(q.data)?q.data[0]:null;if(q.error||!peer)throw Error(q.error?.message||'Caller unavailable.');if(r.data.caller_bun_id){const business=MC.bunContacts.find(x=>x.bun_id===r.data.caller_bun_id);if(business)peer={...peer,username:business.username,display_name:business.business_name};}
@@ -402,7 +402,7 @@ function bind(){
 document.getElementById('mc-add').onsubmit=addContact;document.getElementById('mc-send').onsubmit=sendMessage;document.getElementById('mc-remove').onclick=removeContact;document.getElementById('mc-block').onclick=blockContact;document.getElementById('mc-report').onclick=reportContact;document.getElementById('mc-refresh').onclick=()=>{refreshContacts();if(MC.currentTab==='bun'){loadBunStatus();refreshBunContacts();}};document.getElementById('mc-permissions').onclick=permissions;document.getElementById('mc-speaker').onclick=chooseSpeaker;document.getElementById('mc-notify').onclick=requestNotifications;document.getElementById('mc-notify-setup').onclick=requestNotifications;document.getElementById('mc-continue').onclick=async()=>{try{const ctx=audioContext();if(ctx&&ctx.state==='suspended')await ctx.resume();}catch(e){}await finishSetup();};updateNotificationUi();
 const setTab=tab=>{
  MC.currentTab=tab;
- if((tab==='bun'&&MC.selectedKind!=='bunClient')||(tab!=='bun'&&MC.selectedKind==='bunClient')){MC.selected=null;MC.selectedBunId=null;MC.selectedKind=tab==='bun'?'bunClient':'regular';loadMessages(null);}
+ if((tab==='bun'&&MC.selectedKind!=='bunClient')||(tab!=='bun'&&MC.selectedKind==='bunClient')){MC.selected=null;MC.selectedBunId=null;MC.activeBunContact=null;MC.activeBunClient=null;MC.selectedKind=tab==='bun'?'bunClient':'regular';loadMessages(null);}
  const root=document.getElementById('mc-root');const grid=root.querySelector('.mc-grid');if(grid)grid.classList.toggle('mc-chat-focus',tab==='talk');
  root.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
  root.querySelectorAll('[data-call]').forEach(b=>b.classList.toggle('mc-hidden',!['screen','voice','video'].includes(tab)||b.dataset.call!==tab));
