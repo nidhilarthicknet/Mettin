@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
   let title = "MetConnect";
   let message = "You have a new MetConnect notification.";
   let tag = "metconnect";
-  let kind: "call" | "message" = type as "call" | "message";
+  let kind: "call" | "call_update" | "message" = type as "call" | "call_update" | "message";
   let expiresAt: number | null = null;
 
   if (type === "call" || type === "call_update") {
