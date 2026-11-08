@@ -16,6 +16,13 @@ self.addEventListener("push", (event) => {
       payload = { title: "MetConnect", body: event.data?.text() || "You have a new notification." };
     }
 
+    // Clear the matching system notification as soon as a call is answered, declined or ended.
+    if (payload.kind === "call_update") {
+      const existing = await self.registration.getNotifications({ tag: payload.tag });
+      for (const notification of existing) notification.close();
+      return;
+    }
+
     // A ringing call expires quickly; never show a delayed call as if it were still live.
     if (payload.kind === "call" && payload.expiresAt && Date.now() > Number(payload.expiresAt)) {
       return;
