@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 if(window.__metconnectCodeLoaded)return;window.__metconnectCodeLoaded=true;
-const MC=window.__metconnect={setup:false,currentTab:'contacts',contacts:[],bunContacts:[],bunClients:[],bunProfiles:[],ownBun:null,bunStatus:null,editingBunId:null,activeBunContact:null,activeBunClient:null,selected:null,selectedKind:'regular',selectedBunId:null,active:null,incoming:null,peer:null,local:null,screen:null,remote:null,ice:[],signals:null,incomingChannel:null,messageChannel:null,audio:null,ring:null,ringTimer:null,timeout:null,busy:false,held:false,mic:true,cam:true,speaker:null,pushReady:false,ringtoneEnabled:true};
+const MC=window.__metconnect={setup:false,currentTab:'contacts',contacts:[],bunContacts:[],bunClients:[],bunProfiles:[],ownBun:null,bunStatus:null,editingBunId:null,activeBunContact:null,activeBunClient:null,replyBunId:null,selected:null,selectedKind:'regular',selectedBunId:null,active:null,incoming:null,peer:null,local:null,screen:null,remote:null,ice:[],signals:null,incomingChannel:null,messageChannel:null,audio:null,ring:null,ringTimer:null,timeout:null,busy:false,held:false,mic:true,cam:true,speaker:null,pushReady:false,ringtoneEnabled:true};
 const labels={talk:'Talk',screen:'Share Screen Call',voice:'Voice Call',video:'Video Call'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const person=id=>MC.selectedKind==='bun'?(MC.activeBunContact||MC.bunContacts.find(x=>x.owner_id===id)||MC.contacts.find(x=>x.contact_id===id)||null):MC.selectedKind==='bunClient'?(MC.activeBunClient||MC.bunClients.find(x=>x.owner_id===id)||null):(MC.contacts.find(x=>x.contact_id===id)||MC.bunContacts.find(x=>x.owner_id===id)||null);
@@ -189,7 +189,7 @@ try{const q=await sb.rpc('metconnect_lookup_user',{p_username:username});if(q.er
 catch(x){status(x.message||'Could not add that username.',true);}
 }
 async function selectContact(id,kind='regular',bunId=null){
-MC.selected=id||null;MC.selectedKind=kind;
+MC.selected=id||null;MC.selectedKind=kind;MC.replyBunId=null;
 const p=kind==='bun'?(MC.bunContacts.find(x=>x.owner_id===MC.selected&&(!bunId||x.bun_id===bunId))||person(MC.selected)):kind==='bunClient'?(MC.bunClients.find(x=>x.owner_id===MC.selected&&(!bunId||x.bun_id===bunId))||person(MC.selected)):person(MC.selected);MC.activeBunContact=kind==='bun'?p:null;MC.activeBunClient=kind==='bunClient'?p:null;MC.selectedBunId=kind==='bun'?(bunId||p?.bun_id||null):kind==='bunClient'?(bunId||p?.bun_id||null):null;
 const name=p?p.username:null;
 document.getElementById('mc-title').textContent=name?'@'+name:'Choose a username';
@@ -281,12 +281,12 @@ const box=document.getElementById('mc-messages');if(!box)return;if(!rows.length)
 }
 async function loadMessages(id){
 const box=document.getElementById('mc-messages');if(!id){if(box)box.innerHTML='<div class="mc-empty">Choose a saved username.</div>';return;}
-try{const [a,b]=await Promise.all([sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,recipient_bun_id,body,created_at').eq('sender_id',profile.id).eq('recipient_id',id).order('created_at').limit(150),sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,recipient_bun_id,body,created_at').eq('sender_id',id).eq('recipient_id',profile.id).order('created_at').limit(150)]);if(a.error)throw a.error;if(b.error)throw b.error;const rows=[...(a.data||[]),...(b.data||[])].sort((x,y)=>new Date(x.created_at)-new Date(y.created_at)).slice(-200);for(const m of rows){const peerId=m.sender_id===profile.id?m.recipient_id:m.sender_id;m.body=await decryptMessageText(m.body,peerId);if(m.sender_id!==profile.id&&m.sender_bun_id){const identity=await sb.rpc('metconnect_get_incoming_bun_identity',{p_record_id:m.id,p_kind:'message'});if(!identity.error&&identity.data)m._senderBun=identity.data;}}renderMessages(rows);}
+try{const [a,b]=await Promise.all([sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,recipient_bun_id,body,created_at').eq('sender_id',profile.id).eq('recipient_id',id).order('created_at').limit(150),sb.from('metconnect_messages').select('id,sender_id,recipient_id,sender_bun_id,recipient_bun_id,body,created_at').eq('sender_id',id).eq('recipient_id',profile.id).order('created_at').limit(150)]);if(a.error)throw a.error;if(b.error)throw b.error;const rows=[...(a.data||[]),...(b.data||[])].sort((x,y)=>new Date(x.created_at)-new Date(y.created_at)).slice(-200);MC.replyBunId=rows.filter(m=>m.sender_id===id&&m.sender_bun_id).slice(-1)[0]?.sender_bun_id||null;for(const m of rows){const peerId=m.sender_id===profile.id?m.recipient_id:m.sender_id;m.body=await decryptMessageText(m.body,peerId);if(m.sender_id!==profile.id&&m.sender_bun_id){const identity=await sb.rpc('metconnect_get_incoming_bun_identity',{p_record_id:m.id,p_kind:'message'});if(!identity.error&&identity.data)m._senderBun=identity.data;}}renderMessages(rows);}
 catch(e){if(box)box.innerHTML='<div class="mc-empty">Could not load messages: '+esc(e.message)+'</div>';}
 }
 async function sendMessage(e){
 e.preventDefault();const input=document.getElementById('mc-text'),body=input.value.trim();if(!MC.selected||!body)return;input.disabled=true;
-try{if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))throw Error('Choose an active B-UN and make sure your membership is active before messaging.');if(!MC.cryptoReady)await ensureEncryptionIdentity();const encryptedBody=await encryptMessageText(body,MC.selected);const r=await sb.from('metconnect_messages').insert({sender_id:profile.id,recipient_id:MC.selected,sender_bun_id:MC.currentTab==='bun'?MC.ownBun?.id:null,recipient_bun_id:MC.selectedKind==='bun'?MC.selectedBunId:null,body:encryptedBody});if(r.error)throw r.error;input.value='';await loadMessages(MC.selected);status('Message sent.');}
+try{if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))throw Error('Choose an active B-UN and make sure your membership is active before messaging.');if(!MC.cryptoReady)await ensureEncryptionIdentity();const encryptedBody=await encryptMessageText(body,MC.selected);const r=await sb.from('metconnect_messages').insert({sender_id:profile.id,recipient_id:MC.selected,sender_bun_id:MC.currentTab==='bun'?MC.ownBun?.id:null,recipient_bun_id:MC.currentTab==='bun'?null:(MC.replyBunId||null),body:encryptedBody});if(r.error)throw r.error;input.value='';await loadMessages(MC.selected);status('Message sent.');}
 catch(x){status(x.message||'Message could not be sent.',true);}finally{input.disabled=false;input.focus();}
 }
 async function removeContact(){if(!MC.selected)return;const p=person(MC.selected);if(MC.selectedKind==='bun'){if(!confirm('Remove @'+(p?.username||'this B-UN')+' from saved business usernames?'))return;const r=await sb.rpc('metconnect_bun_remove_contact',{p_bun_id:MC.selectedBunId});if(r.error)return status(r.error.message,true);MC.selected=null;MC.selectedBunId=null;MC.activeBunContact=null;await refreshContacts();await loadMessages(null);return status('Business username removed.');}if(MC.selectedKind==='bunClient'){if(!confirm('Remove this customer from your B-UN saved contacts?'))return;const r=await sb.rpc('metconnect_bun_remove_client',{p_user_id:MC.selected,p_bun_id:MC.selectedBunId});if(r.error)return status(r.error.message,true);MC.selected=null;MC.selectedBunId=null;MC.activeBunClient=null;await refreshBunContacts();await loadMessages(null);return status('Customer removed from this B-UN contact list.');}if(!confirm('Remove @'+(p?.username||'this user')+'?'))return;const r=await sb.from('metconnect_contacts').delete().eq('owner_id',profile.id).eq('contact_id',MC.selected);if(r.error)return status(r.error.message,true);MC.selected=null;await refreshContacts();await loadMessages(null);status('Contact removed.');}
@@ -394,16 +394,6 @@ async function refreshBunContacts(){
  const r=await sb.rpc('metconnect_bun_list_clients');
  if(r.error){console.warn('B-UN clients:',r.error);return;}
  MC.bunClients=Array.isArray(r.data)?r.data:[];
- const visibleClients=MC.bunClients.filter(c=>c.bun_id===MC.ownBun?.id);
- if(MC.currentTab==='bun'){
-  const list=document.getElementById('mc-contacts');
-  if(list){
-   list.innerHTML=visibleClients.map(c=>'<button class="mc-person'+(c.owner_id===MC.selected?' active':'')+'" data-id="'+esc(c.owner_id)+'" data-bun-id="'+esc(c.bun_id)+'"><span><b>@'+esc(c.username)+'</b><small>'+esc(c.business_name||'Metxon user')+'</small></span><span>›</span></button>').join('')||'<div class="mc-empty">No customers have saved this B-UN yet. Ask customers to add your B-UN handle in their Saved Usernames.</div>';
-   list.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>selectContact(b.dataset.id,'bunClient',b.dataset.bunId));
-  }
-  const count=document.getElementById('mc-count');if(count)count.textContent=String(visibleClients.length);
- }
- ['mc-remove','mc-block','mc-report'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!MC.selected;});
 }
 async function loadBunStatus(){
  const r=await sb.rpc('metconnect_bun_status');
@@ -423,7 +413,7 @@ function renderBunAccount(){
  const plan=active?(ent.tier==='trial'?'2-day trial':'MetConnect+'):'No active plan';
  const buy=active?'<button class="mc-btn primary" type="button" id="mc-bun-buy-plus">Renew / upgrade · π30 per month</button>':
   (!ent.trial_used?'<button class="mc-btn primary" type="button" id="mc-bun-buy-trial">Start 2-day B-UN trial · π2</button>':'<button class="mc-btn primary" type="button" id="mc-bun-buy-plus">Subscribe to MetConnect+ · π30 per month</button>');
- const listTitle=document.getElementById('mc-list-title');if(listTitle&&MC.currentTab==='bun')listTitle.textContent=bun?'Saved by customers of @'+bun.username:'People who saved your B-UN';
+ const listTitle=document.getElementById('mc-list-title');if(listTitle&&MC.currentTab==='bun')listTitle.textContent='Choose a recipient from Saved Usernames';
  const profiles=MC.bunProfiles.map(b=>'<div class="mc-person"><span><b>@'+esc(b.username)+'</b><small>'+esc(b.business_name)+'</small></span><span><button type="button" class="mc-btn" data-bun-use="'+esc(b.id)+'">'+(bun?.id===b.id?'Using':'Use')+'</button> <button type="button" class="mc-btn" data-bun-edit="'+esc(b.id)+'">Rename</button></span></div>').join('');
  root.innerHTML='<div class="mc-bun-card"><div class="mc-bun-label">METCONNECT BUSINESS USERNAMES</div><h3 style="margin:5px 0 8px">B-UN</h3><p class="mc-note">Create multiple public business handles for your business. People must save a particular B-UN before it can message or voice-call them. Video calls and screen sharing are disabled in B-UN mode. Blocks apply to your Metxon business account, even if you create or rename another handle.</p>'+membership+'<div class="mc-bun-grid" style="margin-top:10px"><div><b>'+esc(plan)+'</b><div class="mc-bun-label">'+(active?'Membership expiry: '+esc(expiry):'Trial: π2 for 2 days · MetConnect+: π30/month')+'</div></div><div><input class="mc-input" type="password" id="mc-bun-metpay" placeholder="MetPay transaction password" autocomplete="current-password" maxlength="128"></div></div><div class="mc-bun-actions" style="margin-top:9px">'+buy+'</div><small class="mc-note">The π30 monthly plan is renewed by confirming the payment. No silent recurring charge is made.</small></div>'+
   '<div class="mc-bun-card"><h3>Your B-UN numbers</h3>'+(profiles||'<p class="mc-note">No business usernames yet.</p>')+'<div class="mc-bun-actions" style="margin-top:9px"><button class="mc-btn" id="mc-bun-new" type="button">Create another B-UN</button></div></div>'+
@@ -508,7 +498,7 @@ const setTab=tab=>{
  };
  if(help){help.textContent=titles[tab]||titles.contacts;help.classList.toggle('mc-hidden',tab==='talk'||tab==='bun');}
   const bunAccount=document.getElementById('mc-bun-account');if(bunAccount){bunAccount.classList.toggle('mc-hidden',tab!=='bun');if(tab==='bun')loadBunStatus();}
-  const listTitle=document.getElementById('mc-list-title');if(listTitle)listTitle.textContent=tab==='bun'?'People who saved your B-UN':'Saved Usernames';
+  const listTitle=document.getElementById('mc-list-title');if(listTitle)listTitle.textContent=tab==='bun'?'Choose a recipient':'Saved Usernames';
   const addInput=document.getElementById('mc-username');if(addInput)addInput.placeholder=tab==='bun'?'Business username (B-UN)':'Metxon username';
   const addForm=document.getElementById('mc-add');if(addForm)addForm.classList.toggle('mc-hidden',tab!=='contacts');const addButton=document.querySelector('#mc-add button');if(addButton)addButton.textContent='Add';
   const callControls=document.getElementById('mc-call-controls');if(callControls)callControls.classList.toggle('mc-hidden',!['screen','voice','video','bun'].includes(tab));
