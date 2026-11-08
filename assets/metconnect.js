@@ -40,7 +40,8 @@ function notificationPermissionLabel(){
  return 'Not enabled';
 }
 function updateNotificationUi(){
- const label=MC.pushReady?'Enabled on this device':notificationPermissionLabel();
+ const permissionLabel=notificationPermissionLabel();
+ const label=MC.pushReady?'Enabled on this device':permissionLabel==='Enabled'?'Permission granted — finish setup':permissionLabel;
  const state=document.getElementById('mc-notify-state');if(state)state.textContent=label;
  const buttons=['mc-notify','mc-notify-setup'].map(id=>document.getElementById(id)).filter(Boolean);
  buttons.forEach(b=>{b.textContent=MC.pushReady?'Call alerts enabled':'Enable call alerts';b.disabled=MC.pushReady||label==='Unavailable in this browser';});
