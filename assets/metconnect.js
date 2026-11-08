@@ -106,8 +106,10 @@ async function notifySystem(title,body,tag){
 }
 function handleIncomingMessage(row){
  if(!row||row.sender_id===profile.id)return;
+ const business= row.sender_bun_id ? MC.bunContacts.find(x=>x.bun_id===row.sender_bun_id) : null;
  const current=person(row.sender_id);
- if(!MC.pushReady)notifySystem('New MetConnect message','You have a new message from @'+(current?.username||'Metxon user')+'.','metconnect-message-'+row.id);
+ const senderName=business?.username||current?.username||'Metxon user';
+ if(!MC.pushReady)notifySystem('New MetConnect message','You have a new message from @'+senderName+'.','metconnect-message-'+row.id);
  if(MC.selected)loadMessages(MC.selected);
 }
 // Incoming receiver tone: an original celestial-bell melody with short guitar-like plucks.
