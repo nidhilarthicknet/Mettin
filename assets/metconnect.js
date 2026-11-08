@@ -422,7 +422,7 @@ const setTab=tab=>{
   const bunAccount=document.getElementById('mc-bun-account');if(bunAccount){bunAccount.classList.toggle('mc-hidden',tab!=='bun');if(tab==='bun')loadBunStatus();}
   const listTitle=document.getElementById('mc-list-title');if(listTitle)listTitle.textContent=tab==='bun'?'People who saved your B-UN':'Saved Usernames';
   const addInput=document.getElementById('mc-username');if(addInput)addInput.placeholder=tab==='bun'?'Business username (B-UN)':'Metxon username';
-  const addForm=document.getElementById('mc-add');if(addForm)addForm.classList.toggle('mc-hidden',tab==='bun');const addButton=document.querySelector('#mc-add button');if(addButton)addButton.textContent='Add';
+  const addForm=document.getElementById('mc-add');if(addForm)addForm.classList.toggle('mc-hidden',tab!=='contacts');const addButton=document.querySelector('#mc-add button');if(addButton)addButton.textContent='Add';
   const callControls=document.getElementById('mc-call-controls');if(callControls)callControls.classList.toggle('mc-hidden',!['screen','voice','video','bun'].includes(tab));
   root.querySelectorAll('[data-call]').forEach(b=>b.classList.toggle('mc-hidden',tab==='bun'?b.dataset.call!=='voice':!['screen','voice','video'].includes(tab)||b.dataset.call!==tab));
  const bunListTitle=document.getElementById('mc-list-title');if(bunListTitle&&tab==='bun')bunListTitle.textContent=MC.ownBun?'Saved by customers of @'+MC.ownBun.username:'People who saved your B-UN';
