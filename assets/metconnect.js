@@ -198,6 +198,7 @@ document.getElementById('mc-text').disabled=!p;
 document.getElementById('mc-send-btn').disabled=!p;
 if(kind==='bunClient')await refreshBunContacts();else if(kind==='regular'||kind==='bun')await refreshContacts();
 await loadMessages(MC.selected);
+const grid=document.querySelector('#mc-root .mc-grid');if(grid&&MC.currentTab==='talk')grid.classList.add('mc-chat-focus');
 }
 const MC_CRYPTO_DB='metconnect-crypto-v1';
 function cryptoDb(){
@@ -491,7 +492,7 @@ document.getElementById('mc-add').onsubmit=addContact;document.getElementById('m
 const setTab=tab=>{
  MC.currentTab=tab;
  if((tab==='bun'&&MC.selectedKind!=='bunClient')||(tab!=='bun'&&MC.selectedKind==='bunClient')){MC.selected=null;MC.selectedBunId=null;MC.activeBunContact=null;MC.activeBunClient=null;MC.selectedKind=tab==='bun'?'bunClient':'regular';loadMessages(null);}
- const root=document.getElementById('mc-root');const grid=root.querySelector('.mc-grid');if(grid)grid.classList.remove('mc-chat-focus');
+ const root=document.getElementById('mc-root');const grid=root.querySelector('.mc-grid');if(grid)grid.classList.toggle('mc-chat-focus',tab==='talk'&&!!MC.selected);
  root.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
  root.querySelectorAll('[data-call]').forEach(b=>b.classList.toggle('mc-hidden',!['screen','voice','video'].includes(tab)||b.dataset.call!==tab));
  const help=document.getElementById('mc-tab-help');
