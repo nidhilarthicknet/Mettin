@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 if(window.__metconnectCodeLoaded)return;window.__metconnectCodeLoaded=true;
-const MC=window.__metconnect={setup:false,currentTab:'contacts',contacts:[],bunContacts:[],bunClients:[],bunProfiles:[],ownBun:null,bunStatus:null,editingBunId:null,activeBunContact:null,activeBunClient:null,replyBunId:null,selected:null,selectedKind:'regular',selectedBunId:null,active:null,incoming:null,peer:null,local:null,screen:null,remote:null,ice:[],signals:null,incomingChannel:null,messageChannel:null,audio:null,ring:null,ringTimer:null,timeout:null,busy:false,held:false,mic:true,cam:true,speaker:null,pushReady:false,ringtoneEnabled:true};
+const MC=window.__metconnect={setup:false,currentTab:'contacts',contacts:[],bunContacts:[],bunClients:[],bunProfiles:[],ownBun:null,bunStatus:null,editingBunId:null,activeBunContact:null,activeBunClient:null,replyBunId:null,selected:null,selectedKind:'regular',selectedBunId:null,active:null,incoming:null,peer:null,local:null,screen:null,remote:null,ice:[],signals:null,incomingChannel:null,messageChannel:null,audio:null,ring:null,ringTimer:null,timeout:null,incomingPollTimer:null,incomingPollBusy:false,busy:false,held:false,mic:true,cam:true,speaker:null,pushReady:false,ringtoneEnabled:true};
 const labels={talk:'Talk',screen:'Share Screen Call',voice:'Voice Call',video:'Video Call'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const person=id=>MC.selectedKind==='bun'?(MC.activeBunContact||MC.bunContacts.find(x=>x.owner_id===id)||MC.contacts.find(x=>x.contact_id===id)||null):MC.selectedKind==='bunClient'?(MC.activeBunClient||MC.bunClients.find(x=>x.owner_id===id)||null):(MC.contacts.find(x=>x.contact_id===id)||MC.bunContacts.find(x=>x.owner_id===id)||null);
@@ -126,31 +126,36 @@ async function handleIncomingMessage(row){
  if(!MC.pushReady)notifySystem('New MetConnect message','You have a new message from @'+senderName+foul+'.','metconnect-message-'+row.id);
  if(MC.selected)loadMessages(MC.selected);
 }
-// Incoming receiver tone: an original celestial-bell melody with short guitar-like plucks.
+// Incoming ringtone: warm, lower-register bell notes with a soft plucked-guitar layer.
+// Keep the fundamental below 525 Hz and remove the piercing high-frequency overtone.
 function ring(){
-stopRing();const ctx=audioContext();if(!ctx)return;if(ctx.state==='suspended')ctx.resume().catch(()=>{});let live=true;
-const notes=[392.00,493.88,587.33,783.99,587.33,493.88,349.23,440.00,523.25,698.46,523.25,440.00];
-function strike(freq,at,duration){
- const bell=ctx.createOscillator(),bellGain=ctx.createGain(),bell2=ctx.createOscillator(),bell2Gain=ctx.createGain();
- bell.type='sine';bell.frequency.setValueAtTime(freq,at);
- bell2.type='sine';bell2.frequency.setValueAtTime(freq*2.01,at);
- bellGain.gain.setValueAtTime(.0001,at);bellGain.gain.exponentialRampToValueAtTime(.11,at+.018);bellGain.gain.exponentialRampToValueAtTime(.0001,at+duration);
- bell2Gain.gain.setValueAtTime(.0001,at);bell2Gain.gain.exponentialRampToValueAtTime(.035,at+.015);bell2Gain.gain.exponentialRampToValueAtTime(.0001,at+duration*.65);
- bell.connect(bellGain);bellGain.connect(ctx.destination);bell2.connect(bell2Gain);bell2Gain.connect(ctx.destination);
- bell.start(at);bell2.start(at);bell.stop(at+duration);bell2.stop(at+duration*.7);
- const pluck=ctx.createOscillator(),pluckGain=ctx.createGain(),filter=ctx.createBiquadFilter();
- pluck.type='triangle';pluck.frequency.setValueAtTime(freq*.5,at);filter.type='lowpass';filter.frequency.setValueAtTime(1700,at);
- pluckGain.gain.setValueAtTime(.0001,at);pluckGain.gain.exponentialRampToValueAtTime(.055,at+.008);pluckGain.gain.exponentialRampToValueAtTime(.0001,at+.19);
- pluck.connect(filter);filter.connect(pluckGain);pluckGain.connect(ctx.destination);pluck.start(at);pluck.stop(at+.2);
+ stopRing();
+ const ctx=audioContext();if(!ctx)return;
+ if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+ let live=true;
+ const notes=[261.63,329.63,392.00,523.25,392.00,329.63,293.66,349.23,440.00,523.25,440.00,349.23];
+ function strike(freq,at){
+  const bell=ctx.createOscillator(),bellGain=ctx.createGain(),filter=ctx.createBiquadFilter();
+  bell.type='sine';bell.frequency.setValueAtTime(freq,at);
+  filter.type='lowpass';filter.frequency.setValueAtTime(1150,at);filter.Q.setValueAtTime(.35,at);
+  bellGain.gain.setValueAtTime(.0001,at);bellGain.gain.exponentialRampToValueAtTime(.045,at+.025);bellGain.gain.exponentialRampToValueAtTime(.0001,at+.48);
+  bell.connect(filter);filter.connect(bellGain);bellGain.connect(ctx.destination);
+  bell.start(at);bell.stop(at+.5);
+  const pluck=ctx.createOscillator(),pluckGain=ctx.createGain(),pluckFilter=ctx.createBiquadFilter();
+  pluck.type='triangle';pluck.frequency.setValueAtTime(freq*.5,at);
+  pluckFilter.type='lowpass';pluckFilter.frequency.setValueAtTime(950,at);
+  pluckGain.gain.setValueAtTime(.0001,at);pluckGain.gain.exponentialRampToValueAtTime(.022,at+.012);pluckGain.gain.exponentialRampToValueAtTime(.0001,at+.22);
+  pluck.connect(pluckFilter);pluckFilter.connect(pluckGain);pluckGain.connect(ctx.destination);
+  pluck.start(at);pluck.stop(at+.23);
+ }
+ function phrase(){if(!live)return;const now=ctx.currentTime+.04;notes.forEach((f,i)=>strike(f,now+i*.25));MC.ringTimer=setTimeout(phrase,4300);}
+ MC.ring=()=>{live=false;if(MC.ringTimer)clearTimeout(MC.ringTimer);MC.ringTimer=null;};phrase();
 }
-function phrase(){if(!live)return;const now=ctx.currentTime+.04;notes.forEach((f,i)=>strike(f,now+i*.23,.55));MC.ringTimer=setTimeout(phrase,3900);}
-MC.ring=()=>{live=false;clearTimeout(MC.ringTimer);MC.ringTimer=null;};phrase();
-}
-// Caller tone: familiar two-note telephone ringback, kept separate from the receiver melody.
+// Gentle caller ringback, deliberately quieter and lower in level.
 function ringCaller(){
-stopRing();const ctx=audioContext();if(!ctx)return;if(ctx.state==='suspended')ctx.resume().catch(()=>{});let live=true;
-function phrase(){if(!live)return;const now=ctx.currentTime+.02;[440,480].forEach(freq=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.setValueAtTime(freq,now);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.075,now+.04);gain.gain.setValueAtTime(.075,now+.92);gain.gain.exponentialRampToValueAtTime(.0001,now+1.03);osc.connect(gain);gain.connect(ctx.destination);osc.start(now);osc.stop(now+1.05);});MC.ringTimer=setTimeout(phrase,4000);}
-MC.ring=()=>{live=false;clearTimeout(MC.ringTimer);MC.ringTimer=null;};phrase();
+ stopRing();const ctx=audioContext();if(!ctx)return;if(ctx.state==='suspended')ctx.resume().catch(()=>{});let live=true;
+ function phrase(){if(!live)return;const now=ctx.currentTime+.02;[392,440].forEach((freq,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.setValueAtTime(freq,now);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.035,now+.05);gain.gain.setValueAtTime(.035,now+.72);gain.gain.exponentialRampToValueAtTime(.0001,now+.85);osc.connect(gain);gain.connect(ctx.destination);osc.start(now);osc.stop(now+.87);});MC.ringTimer=setTimeout(phrase,4100);}
+ MC.ring=()=>{live=false;if(MC.ringTimer)clearTimeout(MC.ringTimer);MC.ringTimer=null;};phrase();
 }
 
 function stopRing(){if(MC.ring){MC.ring();MC.ring=null;}if(MC.ringTimer)clearTimeout(MC.ringTimer);MC.ringTimer=null;}
@@ -162,7 +167,7 @@ document.getElementById('mc-stage-name').textContent='@'+(c.peer?.username||'Met
 const video=document.getElementById('mc-remote'),audio=document.getElementById('mc-remote-audio'),local=document.getElementById('mc-local');
 if(MC.remote){video.srcObject=MC.remote;audio.srcObject=MC.remote;const hasVideo=MC.remote.getVideoTracks().length>0;video.classList.toggle('mc-hidden',!hasVideo);document.getElementById('mc-audio').classList.toggle('mc-hidden',hasVideo);video.muted=true;}else{video.classList.add('mc-hidden');document.getElementById('mc-audio').classList.remove('mc-hidden');}
 const preview=MC.screen||MC.local;if(preview?.getVideoTracks().length){local.srcObject=preview;local.classList.remove('mc-hidden');}else local.classList.add('mc-hidden');
-if(audio)audio.play().catch(()=>{});if(video)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
+if(audio){audio.volume=.82;audio.muted=false;audio.play().catch(()=>{});}if(video)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
 }
 async function loadSetup(){const r=await sb.from('metconnect_preferences').select('setup_completed,ringtone_enabled').eq('user_id',profile.id).maybeSingle();if(r.error)throw r.error;MC.setup=!!r.data?.setup_completed;MC.ringtoneEnabled=r.data?.ringtone_enabled!==false;return MC.setup;}
 async function permissions(){
@@ -345,7 +350,7 @@ if(MC.busy||MC.active||MC.incoming)return;const c=person(MC.selected);if(!c)retu
 try{
 let screenPromise=null;if(mode==='screen'){screenPromise=metconnectDisplayCapture()({video:true,audio:false});}
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
-const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:true,video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
+const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false,channelCount:1},video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
 local.getTracks().forEach(t=>pc.addTrack(t,local));if(screen)screen.getTracks().forEach(t=>pc.addTrack(t,screen));
 const offer=await pc.createOffer();await pc.setLocalDescription(offer);
 const calleeId=c.contact_id||c.owner_id;if(!calleeId)throw Error('The saved contact could not be resolved.');if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))throw Error('Activate your B-UN plan before calling.');
@@ -360,7 +365,7 @@ finally{MC.busy=false;}
 }
 function showIncoming(call,peer){ensureLayer();MC.incoming=call;const bun=call?._bunIdentity||(call?.caller_bun_id?MC.bunContacts.find(x=>x.bun_id===call.caller_bun_id):null);const targetBun=call?.callee_bun_id?MC.bunProfiles.find(x=>x.id===call.callee_bun_id):null;if(bun)peer={...peer,username:bun.username,display_name:bun.business_name};document.getElementById('mc-in-name').textContent='@'+(peer?.username||'Metxon user');document.getElementById('mc-in-mode').textContent=(labels[call.call_mode]||'Call')+' · Incoming'+(bun&&String(bun.foul_un||'').startsWith('Foul UN')?' · '+bun.foul_un:'')+(targetBun?' · to B-UN @'+targetBun.username:'');document.getElementById('mc-incoming').classList.remove('mc-hidden');if(!MC.pushReady)notifySystem('Incoming '+(labels[call.call_mode]||'MetConnect call'),'@'+(peer?.username||'Metxon user')+' is calling you.','metconnect-call-'+call.id);if(MC.ringtoneEnabled)ring();MC.timeout=setTimeout(async()=>{if(MC.incoming?.id===call.id){await sb.from('metconnect_calls').update({status:'missed'}).eq('id',call.id).eq('callee_id',profile.id);hideIncoming();MC.incoming=null;}},40000);}
 function hideIncoming(){stopRing();if(MC.timeout)clearTimeout(MC.timeout);MC.timeout=null;document.getElementById('mc-incoming')?.classList.add('mc-hidden');}
-async function handleIncoming(call){if(!call||call.status!=='ringing'||MC.active||MC.incoming||!MC.setup)return;const q=await sb.rpc('metconnect_get_call_peer',{p_call_id:call.id});if(q.error)return;const p=Array.isArray(q.data)?q.data[0]:null;if(call.caller_bun_id){const identity=await sb.rpc('metconnect_get_incoming_bun_identity',{p_record_id:call.id,p_kind:'call'});if(!identity.error&&identity.data)call._bunIdentity=identity.data;}if(p)showIncoming(call,p);}
+async function handleIncoming(call){if(!call||call.status!=='ringing'||MC.active||MC.incoming?.id===call.id||MC.incoming||!MC.setup)return;const q=await sb.rpc('metconnect_get_call_peer',{p_call_id:call.id});if(q.error)return;const p=Array.isArray(q.data)?q.data[0]:null;if(call.caller_bun_id){const identity=await sb.rpc('metconnect_get_incoming_bun_identity',{p_record_id:call.id,p_kind:'call'});if(!identity.error&&identity.data)call._bunIdentity=identity.data;}if(p)showIncoming(call,p);}
 async function initMetConnectBackground(){
 if(!profile?.id)return;
 ensureLayer();
@@ -372,22 +377,34 @@ try{const bunList=await sb.rpc('metconnect_bun_list_contacts');if(!bunList.error
 if(!MC.incomingChannel){
  MC.incomingChannel=sb.channel('metconnect-incoming-'+profile.id)
   .on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_calls',filter:'callee_id=eq.'+profile.id},p=>handleIncoming(p.new))
-  .subscribe();
+  .subscribe((state)=>{if(state==='SUBSCRIBED')checkPendingIncoming();});
 }
+// Reconcile missed Realtime events while this MetConnect window is open.
+// Push notifications remain responsible when the browser is backgrounded/closed.
+if(!MC.incomingPollTimer)MC.incomingPollTimer=setInterval(checkPendingIncoming,3000);
+
 if(!MC.messageChannel){
  MC.messageChannel=sb.channel('metconnect-notify-messages-'+profile.id)
   .on('postgres_changes',{event:'INSERT',schema:'public',table:'metconnect_messages',filter:'recipient_id=eq.'+profile.id},p=>handleIncomingMessage(p.new))
   .subscribe();
 }
-const pending=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at')
- .eq('callee_id',profile.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1);
-if(!pending.error&&pending.data?.[0])await handleIncoming(pending.data[0]);
+await checkPendingIncoming();
+}
+async function checkPendingIncoming(){
+ if(!profile?.id||!MC.setup||MC.active||MC.incoming||MC.incomingPollBusy||document.visibilityState==='hidden')return;
+ MC.incomingPollBusy=true;
+ try{
+  const pending=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at')
+   .eq('callee_id',profile.id).eq('status','ringing').order('created_at',{ascending:false}).limit(1);
+  if(!pending.error&&pending.data?.[0])await handleIncoming(pending.data[0]);
+ }catch(e){console.warn('MetConnect incoming-call reconciliation:',e);}
+ finally{MC.incomingPollBusy=false;}
 }
 async function answerIncoming(){
 const call=MC.incoming;if(!call||MC.busy)return;MC.busy=true;let local=null;
 try{hideIncoming();const r=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at').eq('id',call.id).eq('callee_id',profile.id).single();if(r.error)throw r.error;if(r.data.status!=='ringing')throw Error('This call is no longer available.');
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
-local=await navigator.mediaDevices.getUserMedia({audio:true,video:r.data.call_mode==='video'});MC.local=local;
+local=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false,channelCount:1},video:r.data.call_mode==='video'});MC.local=local;
 const q=await sb.rpc('metconnect_get_call_peer',{p_call_id:call.id});let peer=Array.isArray(q.data)?q.data[0]:null;if(q.error||!peer)throw Error(q.error?.message||'Caller unavailable.');if(r.data.caller_bun_id){const identity=call._bunIdentity||(await sb.rpc('metconnect_get_incoming_bun_identity',{p_record_id:call.id,p_kind:'call'})).data;const business=identity||MC.bunContacts.find(x=>x.bun_id===r.data.caller_bun_id);if(business)peer={...peer,username:business.username,display_name:business.business_name};}
 MC.active={id:call.id,callerId:call.caller_id,peerId:peer.user_id,peer,mode:r.data.call_mode,role:'callee',status:'ringing'};const pc=newPeer();await pc.setRemoteDescription(new RTCSessionDescription(r.data.offer_sdp));local.getTracks().forEach(t=>pc.addTrack(t,local));await subscribeCall(call.id);
 const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
@@ -591,7 +608,7 @@ try{updateNotificationUi();if(await loadSetup()){document.getElementById('mc-mai
 catch(e){document.getElementById('mc-setup').classList.remove('mc-hidden');document.getElementById('mc-setup-status').textContent=e.message||'Could not load setup.';}
 if(!MC.messageChannel)await initMetConnectBackground();
 }
-async function shutdown(){stopRing();stopOutgoing();if(MC.active)await endCall();if(profile?.id){try{await sb.from('metconnect_push_subscriptions').delete().eq('user_id',profile.id);}catch(e){console.warn('MetConnect push sign-out cleanup:',e);}}MC.pushReady=false;if(MC.incomingChannel){sb.removeChannel(MC.incomingChannel);MC.incomingChannel=null;}if(MC.messageChannel){sb.removeChannel(MC.messageChannel);MC.messageChannel=null;}}
+async function shutdown(){stopRing();stopOutgoing();if(MC.incomingPollTimer){clearInterval(MC.incomingPollTimer);MC.incomingPollTimer=null;}if(MC.active)await endCall();if(profile?.id){try{await sb.from('metconnect_push_subscriptions').delete().eq('user_id',profile.id);}catch(e){console.warn('MetConnect push sign-out cleanup:',e);}}MC.pushReady=false;if(MC.incomingChannel){sb.removeChannel(MC.incomingChannel);MC.incomingChannel=null;}if(MC.messageChannel){sb.removeChannel(MC.messageChannel);MC.messageChannel=null;}}
 function initBackground(){if(typeof profile!=='undefined'&&profile&&typeof installed!=='undefined'&&installed.has('metconnect'))initMetConnectBackground().catch(e=>console.warn('MetConnect listener:',e));if(new URLSearchParams(location.search).get('openApp')==='metconnect'){let attempts=0,launching=false;const timer=setInterval(async()=>{attempts++;if(!launching&&typeof profile!=='undefined'&&profile?.id&&typeof installed!=='undefined'&&typeof openApp==='function'){launching=true;clearInterval(timer);try{if(typeof loadStore==='function')await loadStore();await openApp();}catch(e){console.error('MetConnect popup launch failed:',e);}}else if(attempts>90)clearInterval(timer);},500);}}
 window.initMetConnectBackground=initMetConnectBackground;
 window.launchMetConnectApp=openApp;window.metconnectShutdown=shutdown;window.openMetConnect=function(){const url=new URL('./metconnect.html',location.href).href;const win=window.open(url,'MetConnect','popup,width=1120,height=820,resizable=yes,scrollbars=yes');if(!win)status('Your browser blocked the MetConnect window. Allow pop-ups for this website and tap MetConnect again.',true);return win;};
