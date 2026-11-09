@@ -105,12 +105,33 @@ var metPayChangeMode = false;
 
 const SUPABASE_URL='https://brahcvovidgjjzpkxsms.supabase.co',SUPABASE_KEY='sb_publishable_FFhWnTcsx3JflSHkIDaSaQ_Mwhh83up';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+
+/* Initialize assistant state before boot/startup callbacks can launch an app. */
+var mettinAiChatState = {assistant:null,conversationId:null,messages:[],busy:false,drawerOpen:false};
+window.__culeInHistory = [];
+
+function mettinAssistantLogoSvg(assistant, compact){
+  const isNebula=assistant==='nebula_ai';
+  if(compact && isNebula){
+    return '<svg class="mettin-ai-logo-compact" viewBox="0 0 64 64" role="img" aria-label="Nebula AI logo"><defs><linearGradient id="nebOrbit" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b99bff"/><stop offset=".55" stop-color="#477dff"/><stop offset="1" stop-color="#50e2ff"/></linearGradient></defs><ellipse cx="31" cy="32" rx="26" ry="15" transform="rotate(-27 31 32)" fill="none" stroke="url(#nebOrbit)" stroke-width="3.2"/><text x="29" y="42" text-anchor="middle" font-size="34" font-weight="900" font-family="Arial,sans-serif" fill="#eaf3ff" stroke="#477dff" stroke-width=".6">M</text><path d="M45 12l13 3-7 4-1 8-5-6-7-1z" fill="#74ddff" stroke="#15385e" stroke-width="1"/><path d="M45 12l-4 9 9 0" fill="none" stroke="#ffffff" stroke-width="1.2"/></svg>';
+  }
+  if(compact){
+    return '<svg class="mettin-ai-logo-compact" viewBox="0 0 64 64" role="img" aria-label="Cule AI logo"><defs><linearGradient id="culeOrbit" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#35e8ff"/><stop offset=".58" stop-color="#1688ff"/><stop offset="1" stop-color="#ff9d36"/></linearGradient></defs><ellipse cx="31" cy="34" rx="25" ry="14" transform="rotate(-24 31 34)" fill="none" stroke="url(#culeOrbit)" stroke-width="3.2"/><text x="29" y="42" text-anchor="middle" font-size="25" font-weight="900" font-family="Arial,sans-serif" fill="#eafaff" stroke="#1688c9" stroke-width=".5">AI</text><path d="M45 10l13 3-7 4-1 8-5-6-7-1z" fill="#55ddff" stroke="#123d64" stroke-width="1"/><path d="M45 10l-4 9 9 0" fill="none" stroke="#ffffff" stroke-width="1.2"/></svg>';
+  }
+  const word=assistant==='cule_in'?'CULE-IN':isNebula?'NEBULA AI':'CULE AI';
+  const stroke=isNebula?'#9b75ff':'#14b9ee';
+  const main=isNebula
+    ? '<text x="195" y="108" text-anchor="middle" font-family="Arial,sans-serif" font-size="88" font-weight="900" fill="url(#wordFill)" stroke="#5d72ce" stroke-width="2">M</text>'
+    : '<text x="195" y="106" text-anchor="middle" font-family="Arial,sans-serif" font-size="54" font-weight="900" letter-spacing="2" fill="url(#wordFill)" stroke="#1263a3" stroke-width="1.5">'+word+'</text>';
+  return '<svg class="mettin-assistant-wordmark" viewBox="0 0 390 170" role="img" aria-label="'+word+' by Mettin, from Met-Xon" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="wordOrbit" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#40eaff"/><stop offset=".52" stop-color="'+stroke+'"/><stop offset="1" stop-color="#ff8d36"/></linearGradient><linearGradient id="wordFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#65c8ff"/></linearGradient></defs><path d="M50 78 C84 11 279 5 337 52 C386 93 272 126 155 118 C63 112 15 96 50 78" fill="none" stroke="url(#wordOrbit)" stroke-width="6" stroke-linecap="round"/><path d="M286 20l27 5-15 8-2 17-10-13-15-2z" fill="#24c6ff" stroke="#174a78" stroke-width="1.8"/><path d="M286 20l-9 20 20-1" fill="none" stroke="#fff" stroke-width="2"/>'+main+'<text x="195" y="148" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="700" letter-spacing="2.2" fill="#91a8bd">BY METTIN, FROM MET-XON</text></svg>';
+}
+
 const $=id=>document.getElementById(id);
 let metxonHomeTimer=null;
 const esc=v=>String(v===null||v===undefined?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const APPS=[
  {id:'met_develop',name:'MetDevelop',price:20000,desc:'Development workspace, MetLang/Atbash, SME development and cloud saving.',icon:'⌘'},
- {id:'cule_in',name:'Cule-In',price:1000,desc:'Conversational AI search for Metxon and general knowledge.',icon:'⌕'},
+ {id:'cule_in',name:'Cule-In',price:1000,desc:'Search engine for Metxon and general knowledge with direct, detailed answers.',icon:'⌕'},
  {id:'cule_ai',name:'Cule AI',price:0,desc:'General conversational AI with new chats and saved history.',icon:'✦'},
  {id:'nebula_ai',name:'Nebula AI',price:10000,desc:'Advanced conversational AI with new chats and saved private history.',icon:'✦'},
  {id:'met_alk',name:'Met-Alk',price:15000,desc:'Username-based messaging, friends and cloud chat.',icon:'↔'},
@@ -1919,7 +1940,7 @@ function launchApp(id){
   if(id==='chess_boys')return launchChessBoysApp();
   if(id==='metconnect')return launchMetConnectApp();
   if(id==='cule_in'){
-    const body='<div style="width:100%;height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;padding:clamp(18px,5vw,50px);box-sizing:border-box"><div style="width:min(900px,100%);margin:auto"><div style="text-align:center;margin-bottom:22px"><div style="font-size:clamp(29px,5vw,42px);font-weight:850;letter-spacing:-1.5px">Cule-In</div><p class="muted" style="margin-top:6px">Metxon knowledge + general learning</p></div><form id="culeInForm" style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:999px;padding:8px 10px 8px 20px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="culeSearchBox" type="search" maxlength="1200" placeholder="Ask anything — Metxon, maths, English, science…" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" id="culeSearchButton" type="submit" style="border-radius:999px;padding:11px 22px">Ask</button></form><div id="culeInStatus" class="status" aria-live="polite" style="margin:12px 8px"></div><div id="culeInAnswer" aria-live="polite" style="white-space:pre-wrap;line-height:1.65;font-size:1.04rem;min-height:0;margin:24px 4px"></div></div></div>';
+    const body='<div style="width:100%;height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;padding:clamp(18px,5vw,50px);box-sizing:border-box"><div style="width:min(900px,100%);margin:auto"><div style="text-align:center;margin-bottom:22px">'+mettinAssistantLogoSvg('cule_in',false)+'<p class="muted" style="margin-top:6px">Search engine · direct answers and up-to-date information</p></div><form id="culeInForm" style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:999px;padding:8px 10px 8px 20px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="culeSearchBox" type="search" maxlength="1200" placeholder="Ask anything — Metxon, maths, English, science…" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" id="culeSearchButton" type="submit" style="border-radius:999px;padding:11px 22px">Ask</button></form><div id="culeInStatus" class="status" aria-live="polite" style="margin:12px 8px"></div><div id="culeInAnswer" aria-live="polite" style="white-space:pre-wrap;line-height:1.65;font-size:1.04rem;min-height:0;margin:24px 4px"></div></div></div>';
     renderLocalApp(a,body);
     $('culeInForm').addEventListener('submit',e=>{e.preventDefault();searchCuleIn();});
     return;
@@ -1970,13 +1991,14 @@ async function searchCuleIn(){
   if(button)button.disabled=false;
  }
 }
-let mettinAiChatState={assistant:null,conversationId:null,messages:[],busy:false,drawerOpen:false};
+
 function mettinAiChatMarkup(assistant){
  const name=assistant==='cule_ai'?'Cule AI':'Nebula AI';
  return '<style>'+
  '.mettin-ai-shell{position:relative;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;box-sizing:border-box;background:#07111d;color:#edf5fc;border:0;border-radius:0}'+
  '.mettin-ai-top{height:64px;min-height:64px;display:flex;align-items:center;gap:13px;padding:0 18px;border-bottom:1px solid #203449;background:#091725}'+
  '.mettin-ai-mark{width:42px;height:42px;border-radius:50%;border:1px solid #2f678e;background:#0d3451;color:#eaf7ff;font-size:20px;font-weight:900;cursor:pointer;display:grid;place-items:center}'+
+ '.mettin-ai-logo-compact{display:block;width:36px;height:36px}.mettin-assistant-wordmark{display:block;width:min(360px,94%);height:auto;margin:0 auto 8px}'+
  '.mettin-ai-heading{min-width:0}.mettin-ai-heading strong{display:block;font-size:17px}.mettin-ai-heading span{display:block;color:#8fa9bd;font-size:12px;margin-top:2px}'+
  '.mettin-ai-thread{flex:1 1 auto;min-height:0;overflow:auto;padding:clamp(16px,3vw,34px) 16px 24px;scroll-behavior:smooth}'+
  '.mettin-ai-thread-inner{width:min(900px,100%);margin:0 auto;display:flex;flex-direction:column;gap:18px}'+
@@ -1991,7 +2013,7 @@ function mettinAiChatMarkup(assistant){
  '@media(max-width:560px){.mettin-ai-top{height:56px;min-height:56px;padding:0 12px}.mettin-ai-thread{padding:14px 11px 18px}.mettin-ai-bottom{padding:9px 10px max(12px,env(safe-area-inset-bottom))}.mettin-ai-compose{padding-left:14px}}'+
  '</style>'+
  '<div class="mettin-ai-shell" id="mettinAiShell">'+
- '<header class="mettin-ai-top"><button type="button" class="mettin-ai-mark" id="mettinAiHistoryToggle" aria-label="Open chat history">M</button><div class="mettin-ai-heading"><strong>'+name+'</strong><span>General AI · Metxon knowledge, schoolwork and everyday questions</span></div></header>'+
+ '<header class="mettin-ai-top"><button type="button" class="mettin-ai-mark" id="mettinAiHistoryToggle" aria-label="Open chat history">'+mettinAssistantLogoSvg(assistant,true)+'</button><div class="mettin-ai-heading"><strong>'+name+'</strong><span>'+(assistant==='nebula_ai'?'Advanced AI · deeper reasoning, detailed explanations and modern answers':'Friendly AI · general knowledge, learning and everyday conversations')+'</span></div></header>'+
  '<main class="mettin-ai-thread" id="mettinAiMessages" aria-live="polite"><div class="mettin-ai-thread-inner"><div class="mettin-ai-empty"><strong>What would you like to ask?</strong><span>Metxon, maths, English, science, social studies, technology, and more.</span></div></div></main>'+
  '<footer class="mettin-ai-bottom"><div class="mettin-ai-compose"><textarea class="mettin-ai-input" id="mettinAiInput" rows="1" maxlength="4000" aria-label="Your message" placeholder="Message Cule AI or Nebula AI…"></textarea><button type="button" class="mettin-ai-send" id="mettinAiSend" aria-label="Send question">↑</button></div><div class="mettin-ai-status" id="mettinAiStatus" role="status">Answers combine general AI knowledge with verified Metxon information.</div></footer>'+
  '<div class="mettin-ai-overlay" id="mettinAiHistoryOverlay" hidden><div style="position:absolute;inset:0" id="mettinAiHistoryBackdrop"></div><aside class="mettin-ai-drawer" aria-label="Chat history"><div class="mettin-ai-drawer-head"><strong>Your chats</strong><button type="button" class="btn" id="mettinAiHistoryClose" aria-label="Close chat history">✕</button></div><button type="button" class="btn primary" id="mettinAiNewChat">＋ New chat</button><div class="mettin-ai-drawer-list" id="mettinAiChatList"><p class="small muted">Loading chats…</p></div></aside></div>'+
