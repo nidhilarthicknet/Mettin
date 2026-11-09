@@ -27,5 +27,5 @@ window.verifyMetAccountCredentials=async function(username,password,expectedUser
 async function bootMetConnect(){try{if(!await getProfile()){document.getElementById('launchContent').innerHTML='<section class="notice"><h2>Sign in required</h2><p>Sign in to your Metxon account on this website, then reopen this separate MetConnect window.</p><p><a href="./">Return to Mettin</a></p></section>';return;}await loadStore();await window.launchMetConnectApp();}catch(e){document.getElementById('launchContent').innerHTML='<section class="notice"><h2>Could not open MetConnect</h2><p>'+String(e.message||e)+'</p><button onclick="location.reload()">Retry</button></section>';}}
 document.addEventListener('DOMContentLoaded',bootMetConnect);
 </script>
-<script src="./metconnect.js?v=20261109-independent-window-1"></script>
+<script src="./metconnect.js?v=20261109-background-push-fix-2"></script>
 </body></html>
