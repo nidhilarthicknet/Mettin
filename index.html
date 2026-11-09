@@ -1926,12 +1926,12 @@ function launchApp(id){
   }
   if(id==='cule_ai'){
     renderLocalApp(a,mettinAiChatMarkup('cule_ai'));
-    initMettinAiChat('cule_ai');
+    initMettinAiChat('cule_ai').catch(e=>{console.error('Cule AI initialization failed:',e);status('mettinAiStatus','Cule AI could not initialize: '+(e.message||'Please reopen the app.'),'error');});
     return;
   }
   if(id==='nebula_ai'){
     renderLocalApp(a,mettinAiChatMarkup('nebula_ai'));
-    initMettinAiChat('nebula_ai');
+    initMettinAiChat('nebula_ai').catch(e=>{console.error('Nebula AI initialization failed:',e);status('mettinAiStatus','Nebula AI could not initialize: '+(e.message||'Please reopen the app.'),'error');});
     return;
   }
   if(id==='met_alk'){
@@ -2135,7 +2135,10 @@ async function sendMettinAiMessage(){
    }
   }
  }catch(e){
-  status('mettinAiStatus','Could not get an answer: '+(e.message||'Please try again.'),'error');
+  const message=e.message||'Please try again.';
+  mettinAiChatState.messages.push({role:'assistant',content:'I could not get a response. '+message,created_at:new Date().toISOString()});
+  renderMettinAiMessages();
+  status('mettinAiStatus','Request failed: '+message,'error');
   input.value=priorText;
  }finally{
   mettinAiChatState.busy=false;input.disabled=false;if(send)send.disabled=false;input.focus();
