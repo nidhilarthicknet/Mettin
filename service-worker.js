@@ -28,7 +28,7 @@ self.addEventListener("push", (event) => {
       return;
     }
 
-    const icon = new URL("assets/mettin-brand.png", self.registration.scope).href;
+    const icon = new URL("metconnect-icon.svg", self.registration.scope).href;
     const options = {
       body: payload.body || "You have a new MetConnect notification.",
       icon,
@@ -42,7 +42,7 @@ self.addEventListener("push", (event) => {
       requireInteraction: payload.kind === "call",
       timestamp: Number(payload.timestamp) || Date.now(),
       data: {
-        url: payload.url || new URL("?openApp=metconnect", self.registration.scope).href,
+        url: payload.url || new URL("metconnect.html?openApp=metconnect", self.registration.scope).href,
         kind: payload.kind || "message",
         recordId: payload.recordId || null
       }
