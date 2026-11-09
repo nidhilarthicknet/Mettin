@@ -538,7 +538,7 @@ const setTab=tab=>{
  const selected=person(MC.selected);
  if(title)title.textContent=selected?'@'+selected.username:(tab==='contacts'?'Saved Usernames':'Choose a username');
  if(subtitle)subtitle.textContent=selected?(selected.display_name||'Metxon user')+' · MetConnect':(tab==='talk'?'Choose a username to start a private chat.':'Select a saved username first.');
- if(composer)composer.classList.toggle('mc-hidden',!(tab==='talk'&&!!MC.selected)||(tab==='bun'&&MC.bunAction==='message'&&!!MC.selected));
+ if(composer)composer.classList.toggle('mc-hidden',!((tab==='talk'&&!!MC.selected)||(tab==='bun'&&MC.bunAction==='message'&&!!MC.selected)));
  if(messages)messages.classList.toggle('mc-hidden',!(tab==='talk'||(tab==='bun'&&MC.bunAction==='message'&&!!MC.selected)));
  const back=document.getElementById('mc-chat-back');if(back){const inChat=!!MC.selected&&(tab==='talk'||(tab==='bun'&&MC.bunAction==='message'));back.classList.toggle('mc-hidden',!inChat);back.textContent=tab==='bun'?'Recipients':'Chats';back.onclick=()=>{MC.selected=null;MC.selectedBunId=null;MC.activeBunContact=null;MC.activeBunClient=null;MC.selectedKind='regular';if(tab==='bun'){document.querySelector('#mc-root .mc-grid')?.classList.remove('mc-bun-message');MC.bunAction=null;loadMessages(null);refreshContacts();status('Choose Message or Call, then select a MetConnect username.');}else setTab('talk');};}
  if(tab==='talk'&&!MC.selected){const text=document.getElementById('mc-text'),send=document.getElementById('mc-send-btn');if(text)text.disabled=true;if(send)send.disabled=true;renderTalkChooser();}
