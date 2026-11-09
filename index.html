@@ -1941,7 +1941,7 @@ function launchApp(id){
   return renderLocalApp(a,'<div class="card"><h2>'+esc(a.name)+'</h2><p>'+esc(a.desc)+'</p><p>This app is running inside Mettin; no redirect to the Metxon corporate homepage is used.</p></div>');
 }
 
-let culeInHistory=[];
+window.__culeInHistory = [];
 async function searchCuleIn(){
  const question=$('culeSearchBox')?.value.trim();
  if(!question)return status('culeInStatus','Type a question first.','error');
@@ -1950,14 +1950,14 @@ async function searchCuleIn(){
  if(output)output.textContent='';
  status('culeInStatus','Thinking…');
  try{
-  const history=culeInHistory.slice(-10);
+  const history=window.__culeInHistory.slice(-10);
   const r=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:'cule_in'}});
   if(r.error)throw new Error(await mettinAiErrorMessage(r.error));
   if(!r.data||r.data.error)throw new Error(r.data?.error||'No answer was returned.');
   const answer=String(r.data.answer||'I could not produce an answer for that question.').trim();
   if(output)output.textContent=answer;
-  culeInHistory.push({role:'user',content:question},{role:'assistant',content:answer});
-  culeInHistory=culeInHistory.slice(-10);
+  window.__culeInHistory.push({role:'user',content:question},{role:'assistant',content:answer});
+  window.__culeInHistory=window.__culeInHistory.slice(-10);
   status('culeInStatus','Answer ready.');
  }catch(e){
   if(output)output.textContent='The assistant is temporarily unavailable. '+(e.message||'Please try again.');
