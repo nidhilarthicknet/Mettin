@@ -178,9 +178,9 @@ const video=document.getElementById('mc-remote'),audio=document.getElementById('
 // The remote video element is ALWAYS muted. Remote sound is played exactly once
 // through the dedicated audio element to prevent speaker/microphone feedback.
 video.muted=true;
-if(MC.remote){video.srcObject=MC.remote;audio.srcObject=MC.remote;const hasVideo=MC.remote.getVideoTracks().length>0;video.classList.toggle('mc-hidden',!hasVideo);document.getElementById('mc-audio').classList.toggle('mc-hidden',hasVideo);}else{video.srcObject=null;audio.srcObject=null;video.classList.add('mc-hidden');document.getElementById('mc-audio').classList.remove('mc-hidden');}
+if(MC.remote){if(video.srcObject!==MC.remote)video.srcObject=MC.remote;if(audio.srcObject!==MC.remote)audio.srcObject=MC.remote;const hasVideo=MC.remote.getVideoTracks().length>0;video.classList.toggle('mc-hidden',!hasVideo);document.getElementById('mc-audio').classList.toggle('mc-hidden',hasVideo);}else{video.srcObject=null;if(audio.srcObject){audio.pause();audio.srcObject=null;}video.classList.add('mc-hidden');document.getElementById('mc-audio').classList.remove('mc-hidden');}
 const preview=MC.screen||MC.local;if(preview?.getVideoTracks().length){local.srcObject=preview;local.muted=true;local.classList.remove('mc-hidden');}else local.classList.add('mc-hidden');
-if(audio){audio.volume=.08;audio.muted=false;audio.play().catch(()=>{});}if(video)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
+if(audio){audio.volume=.08;audio.muted=false;if(audio.srcObject&&!audio.paused){}else if(audio.srcObject)audio.play().catch(()=>{});}if(video&&video.srcObject)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
 }
 async function loadSetup(){const r=await sb.from('metconnect_preferences').select('setup_completed,ringtone_enabled').eq('user_id',profile.id).maybeSingle();if(r.error)throw r.error;MC.setup=!!r.data?.setup_completed;MC.ringtoneEnabled=r.data?.ringtone_enabled!==false;return MC.setup;}
 async function permissions(){
@@ -443,7 +443,7 @@ else if(row.signal_type==='hold')setStageStatus('The other person has put the ca
 async function endCall(){const c=MC.active;if(!c)return;await sb.from('metconnect_calls').update({status:'ended'}).eq('id',c.id);cleanupCall('Call ended.');}
 function cleanupCall(message){
 stopOutgoing();stopRing();if(MC.timeout)clearTimeout(MC.timeout);if(MC.signals){sb.removeChannel(MC.signals);MC.signals=null;}if(MC.peer){MC.peer.onicecandidate=null;MC.peer.close();}
-if(MC.local)MC.local.getTracks().forEach(t=>t.stop());if(MC.screen)MC.screen.getTracks().forEach(t=>t.stop());
+if(MC.local)MC.local.getTracks().forEach(t=>t.stop());if(MC.screen)MC.screen.getTracks().forEach(t=>t.stop());const remoteAudio=document.getElementById('mc-remote-audio');if(remoteAudio){remoteAudio.pause();remoteAudio.srcObject=null;}
 MC.peer=null;MC.local=null;MC.screen=null;MC.remote=null;MC.active=null;MC.ice=[];MC.held=false;document.getElementById('mc-stage-wrap')?.classList.add('mc-hidden');status(message||'Call ended.');
 }
 function toggleMic(){if(!MC.local)return;const tracks=MC.local.getAudioTracks();if(!tracks.length)return;MC.mic=!MC.mic;tracks.forEach(t=>t.enabled=MC.mic);document.getElementById('mc-mute').textContent=MC.mic?'Mute mic':'Unmute mic';}
