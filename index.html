@@ -1941,30 +1941,35 @@ function launchApp(id){
   return renderLocalApp(a,'<div class="card"><h2>'+esc(a.name)+'</h2><p>'+esc(a.desc)+'</p><p>This app is running inside Mettin; no redirect to the Metxon corporate homepage is used.</p></div>');
 }
 
-window.__culeInHistory = [];
+window.__culeInHistory = Array.isArray(window.__culeInHistory) ? window.__culeInHistory : [];
 async function searchCuleIn(){
- const question=$('culeSearchBox')?.value.trim();
- if(!question)return status('culeInStatus','Type a question first.','error');
+ const input=$('culeSearchBox');
+ const question=String(input?.value||'').trim();
  const button=$('culeSearchButton'),output=$('culeInAnswer');
+ if(!question){status('culeInStatus','Type a question first.','error');return;}
  if(button)button.disabled=true;
  if(output)output.textContent='';
  status('culeInStatus','Thinking…');
  try{
-  const history=window.__culeInHistory.slice(-10);
-  const r=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:'cule_in'}});
-  if(r.error)throw new Error(await mettinAiErrorMessage(r.error));
-  if(!r.data||r.data.error)throw new Error(r.data?.error||'No answer was returned.');
-  const answer=String(r.data.answer||'I could not produce an answer for that question.').trim();
+  const history=Array.isArray(window.__culeInHistory)?window.__culeInHistory.slice(-10):[];
+  if(!window.sb?.functions?.invoke)throw new Error('The Metxon connection is not ready. Reload Mettin and try again.');
+  const result=await window.sb.functions.invoke('cule-in-search',{body:{question,history,assistant:'cule_in'}});
+  if(result?.error)throw new Error(await mettinAiErrorMessage(result.error));
+  if(!result?.data||result.data.error)throw new Error(result?.data?.error||'The AI service returned no answer.');
+  const answer=String(result.data.answer||'').trim();
+  if(!answer)throw new Error('The AI service returned an empty answer.');
   if(output)output.textContent=answer;
-  window.__culeInHistory.push({role:'user',content:question},{role:'assistant',content:answer});
-  window.__culeInHistory=window.__culeInHistory.slice(-10);
+  window.__culeInHistory=history.concat([{role:'user',content:question},{role:'assistant',content:answer}]).slice(-10);
   status('culeInStatus','Answer ready.');
- }catch(e){
-  if(output)output.textContent='The assistant is temporarily unavailable. '+(e.message||'Please try again.');
-  status('culeInStatus','Request failed.','error');
- }finally{if(button)button.disabled=false;}
+ }catch(error){
+  const message=error?.message||String(error)||'Please try again.';
+  if(output)output.textContent='The assistant is temporarily unavailable. '+message;
+  status('culeInStatus','Request failed: '+message,'error');
+  console.error('Cule-In request failed:',error);
+ }finally{
+  if(button)button.disabled=false;
+ }
 }
-
 let mettinAiChatState={assistant:null,conversationId:null,messages:[],busy:false,drawerOpen:false};
 function mettinAiChatMarkup(assistant){
  const name=assistant==='cule_ai'?'Cule AI':'Nebula AI';
@@ -2051,28 +2056,23 @@ async function openMettinAiConversation(id){
 async function initMettinAiChat(assistant){
  mettinAiChatState={assistant,conversationId:null,messages:[],busy:false,drawerOpen:false};
  const input=$('mettinAiInput'),send=$('mettinAiSend');
- if(!input||!send){console.error('Metxon assistant composer did not render.');return;}
- $('mettinAiHistoryToggle').addEventListener('click',async()=>{
-  setMettinAiHistoryOpen(true);await refreshMettinAiChatList();
+ if(!input||!send)throw new Error('The assistant composer did not render correctly. Reopen the app.');
+ const bind=(id,event,handler)=>{const node=$(id);if(node)node.addEventListener(event,handler);};
+ bind('mettinAiHistoryToggle','click',async()=>{setMettinAiHistoryOpen(true);await refreshMettinAiChatList();});
+ bind('mettinAiHistoryClose','click',()=>setMettinAiHistoryOpen(false));
+ bind('mettinAiHistoryBackdrop','click',()=>setMettinAiHistoryOpen(false));
+ bind('mettinAiNewChat','click',async()=>{
+  try{await createMettinAiConversation();setMettinAiHistoryOpen(false);status('mettinAiStatus','New chat ready.');input.focus();}
+  catch(error){status('mettinAiStatus',error?.message||'Could not create a chat.','error');}
  });
- $('mettinAiHistoryClose').addEventListener('click',()=>setMettinAiHistoryOpen(false));
- $('mettinAiHistoryBackdrop').addEventListener('click',()=>setMettinAiHistoryOpen(false));
- $('mettinAiNewChat').addEventListener('click',async()=>{
-  try{
-   await createMettinAiConversation();setMettinAiHistoryOpen(false);
-   status('mettinAiStatus','New chat ready.');input.focus();
-  }catch(e){status('mettinAiStatus',e.message||'Could not create a chat.','error');}
- });
- send.addEventListener('click',sendMettinAiMessage);
- input.addEventListener('input',()=>{
-  input.style.height='27px';input.style.height=Math.min(input.scrollHeight,150)+'px';
- });
- input.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMettinAiMessage();}
-  if(e.key==='Escape'&&mettinAiChatState.drawerOpen)setMettinAiHistoryOpen(false);
- });
+ send.onclick=(event)=>{event?.preventDefault?.();sendMettinAiMessage();};
+ input.oninput=()=>{input.style.height='27px';input.style.height=Math.min(input.scrollHeight,150)+'px';};
+ input.onkeydown=event=>{
+  if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMettinAiMessage();}
+  if(event.key==='Escape'&&mettinAiChatState.drawerOpen)setMettinAiHistoryOpen(false);
+ };
  renderMettinAiMessages();
- if(!profile?.id){status('mettinAiStatus','You can ask questions now. Sign in to save chat history.');return;}
+ if(!profile?.id){status('mettinAiStatus','Ready. Ask a question; sign in to save chat history.');return;}
  await refreshMettinAiChatList();
  const recent=await sb.from('mettin_ai_conversations').select('id')
   .eq('owner_id',profile.id).eq('assistant_key',assistant)
@@ -2080,7 +2080,7 @@ async function initMettinAiChat(assistant){
  if(recent.error){status('mettinAiStatus','Chat history could not be loaded: '+recent.error.message,'error');return;}
  if(recent.data?.[0]){
   try{await openMettinAiConversation(recent.data[0].id);}
-  catch(e){status('mettinAiStatus',e.message||'Could not open the last chat.','error');}
+  catch(error){status('mettinAiStatus',error?.message||'Could not open the last chat.','error');}
  }
 }
 async function mettinAiErrorMessage(error){
@@ -2095,7 +2095,8 @@ async function mettinAiErrorMessage(error){
  return error?.message||'The AI service is temporarily unavailable. Please try again.';
 }
 async function sendMettinAiMessage(){
- if(mettinAiChatState.busy)return;
+ if(!mettinAiChatState||mettinAiChatState.busy)return;
+ if(!Array.isArray(mettinAiChatState.messages))mettinAiChatState.messages=[];
  const input=$('mettinAiInput'),question=input?.value.trim();
  if(!question)return;
  mettinAiChatState.busy=true;
@@ -2105,8 +2106,9 @@ async function sendMettinAiMessage(){
   let userMessage={role:'user',content:question,created_at:new Date().toISOString()};
   mettinAiChatState.messages.push(userMessage);renderMettinAiMessages();input.value='';input.style.height='27px';
   status('mettinAiStatus','Thinking…');
-  const history=mettinAiChatState.messages.slice(-14,-1).map(m=>({role:m.role,content:m.content}));
-  const response=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
+  const history=(Array.isArray(mettinAiChatState.messages)?mettinAiChatState.messages:[]).slice(-14,-1).map(m=>({role:m.role,content:m.content}));
+  if(!window.sb?.functions?.invoke)throw new Error('The Metxon connection is not ready. Reload Mettin and try again.');
+  const response=await window.sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
   if(response.error)throw new Error(await mettinAiErrorMessage(response.error));
   if(!response.data||response.data.error)throw new Error(response.data?.error||'No answer was returned.');
   let content=String(response.data.answer||'').trim();
