@@ -27,7 +27,7 @@ document.body.appendChild(el);
 document.getElementById('mc-answer').onclick=answerIncoming;document.getElementById('mc-decline').onclick=declineIncoming;document.getElementById('mc-end').onclick=endCall;document.getElementById('mc-mute').onclick=toggleMic;document.getElementById('mc-camera-toggle').onclick=toggleCam;document.getElementById('mc-hold').onclick=toggleHold;document.getElementById('mc-share-screen').onclick=shareScreen;
 }
 function metconnectDisplayCapture(){
- if(!window.isSecureContext)throw Error('Screen sharing requires the secure HTTPS version of Mettin. Open https://nidhilarthicknet.github.io/Mettin/.');
+ if(!window.isSecureContext)throw Error('Screen sharing requires the secure HTTPS version of this website.');
  const capture=navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices)||navigator.getDisplayMedia?.bind(navigator);
  if(!capture)throw Error('Your current browser does not provide screen capture. MetConnect screen sharing works in supported desktop browsers over HTTPS; Chrome on Android does not expose the browser screen-capture API. Open MetConnect on a desktop browser to share a screen.');
  return capture;
@@ -480,7 +480,7 @@ async function saveBunIdentity(){
  const out=document.getElementById('mc-bun-account-status');
  try{
   if(!MC.bunStatus?.active)throw new Error('Start the B-UN trial or subscribe to MetConnect+ first.');
-  if(typeof window.verifyMetAccountCredentials!=='function')throw new Error('Secure Metxon account verification is unavailable. Reload Mettin and try again.');
+  if(typeof window.verifyMetAccountCredentials!=='function')throw new Error('Secure Metxon account verification is unavailable. Reload this MetConnect window and try again.');
   if(!password)throw new Error('Enter your Metxon account password to verify this change.');
   await window.verifyMetAccountCredentials(username,password,profile.id);
   const r=await sb.rpc('metconnect_bun_save_identity',{
@@ -582,7 +582,7 @@ if(!MC.messageChannel)await initMetConnectBackground();
 async function shutdown(){stopRing();stopOutgoing();if(MC.active)await endCall();if(profile?.id){try{await sb.from('metconnect_push_subscriptions').delete().eq('user_id',profile.id);}catch(e){console.warn('MetConnect push sign-out cleanup:',e);}}MC.pushReady=false;if(MC.incomingChannel){sb.removeChannel(MC.incomingChannel);MC.incomingChannel=null;}if(MC.messageChannel){sb.removeChannel(MC.messageChannel);MC.messageChannel=null;}}
 function initBackground(){if(typeof profile!=='undefined'&&profile&&typeof installed!=='undefined'&&installed.has('metconnect'))initMetConnectBackground().catch(e=>console.warn('MetConnect listener:',e));if(new URLSearchParams(location.search).get('openApp')==='metconnect'){let attempts=0,launching=false;const timer=setInterval(async()=>{attempts++;if(!launching&&typeof profile!=='undefined'&&profile?.id&&typeof installed!=='undefined'&&typeof openApp==='function'){launching=true;clearInterval(timer);try{if(typeof loadStore==='function')await loadStore();await openApp();}catch(e){console.error('MetConnect popup launch failed:',e);}}else if(attempts>90)clearInterval(timer);},500);}}
 window.initMetConnectBackground=initMetConnectBackground;
-window.launchMetConnectApp=openApp;window.metconnectShutdown=shutdown;window.openMetConnect=function(){const url='https://nidhilarthicknet.github.io/Mettin/?openApp=metconnect';const win=window.open(url,'MetConnect','popup,width=1120,height=820,resizable=yes,scrollbars=yes');if(!win)window.location.href=url;return win;};
+window.launchMetConnectApp=openApp;window.metconnectShutdown=shutdown;window.openMetConnect=function(){const url=new URL('./metconnect.html',location.href).href;const win=window.open(url,'MetConnect','popup,width=1120,height=820,resizable=yes,scrollbars=yes');if(!win)status('Your browser blocked the MetConnect window. Allow pop-ups for this website and tap MetConnect again.',true);return win;};
 window.addEventListener('beforeunload',()=>{if(MC.peer)MC.peer.close();});
 window.dispatchEvent(new Event('metconnect-ready'));
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initBackground,{once:true});else initBackground();
