@@ -507,8 +507,10 @@ async function addBunContact(e){
 }
 
 function bind(){
+const callControls=document.getElementById('mc-call-controls'),mainGrid=document.querySelector('#mc-root .mc-grid');if(callControls&&mainGrid&&callControls.parentElement!==mainGrid.parentElement)mainGrid.insertAdjacentElement('afterend',callControls);
 document.getElementById('mc-add').onsubmit=addContact;document.getElementById('mc-send').onsubmit=sendMessage;document.getElementById('mc-remove').onclick=removeContact;document.getElementById('mc-block').onclick=blockContact;document.getElementById('mc-report').onclick=reportContact;document.getElementById('mc-refresh').onclick=()=>{refreshContacts();if(MC.currentTab==='bun'){loadBunStatus();refreshBunContacts();}};document.getElementById('mc-permissions').onclick=permissions;document.getElementById('mc-speaker').onclick=chooseSpeaker;document.getElementById('mc-notify').onclick=requestNotifications;document.getElementById('mc-notify-setup').onclick=requestNotifications;document.getElementById('mc-continue').onclick=async()=>{try{const ctx=audioContext();if(ctx&&ctx.state==='suspended')await ctx.resume();}catch(e){}await finishSetup();};updateNotificationUi();
 const setTab=tab=>{
+ if(tab!=='bun')MC.bunAction=null;
  MC.currentTab=tab;
  
  const root=document.getElementById('mc-root');const grid=root.querySelector('.mc-grid');root.classList.toggle('mc-subpage',tab!=='contacts');if(grid){grid.classList.toggle('mc-chat-focus',tab==='talk');grid.classList.toggle('mc-saved-only',tab==='contacts');grid.classList.toggle('mc-list-only',['screen','voice','video','bun'].includes(tab));grid.classList.remove('mc-bun-message');}const sectionTitle=document.getElementById('mc-section-title');if(sectionTitle)sectionTitle.textContent=({talk:'Talk',screen:'Share Screen Call',voice:'Voice Call',video:'Video Call',bun:'B-UN'}[tab]||'MetConnect');
