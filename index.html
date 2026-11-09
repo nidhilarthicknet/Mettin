@@ -1952,8 +1952,8 @@ async function searchCuleIn(){
  status('culeInStatus','Thinking…');
  try{
   const history=Array.isArray(window.__culeInHistory)?window.__culeInHistory.slice(-10):[];
-  if(!window.sb?.functions?.invoke)throw new Error('The Metxon connection is not ready. Reload Mettin and try again.');
-  const result=await window.sb.functions.invoke('cule-in-search',{body:{question,history,assistant:'cule_in'}});
+  if(typeof sb==='undefined'||!sb?.functions?.invoke)throw new Error('The Metxon connection is not ready. Reload Mettin and try again.');
+  const result=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:'cule_in'}});
   if(result?.error)throw new Error(await mettinAiErrorMessage(result.error));
   if(!result?.data||result.data.error)throw new Error(result?.data?.error||'The AI service returned no answer.');
   const answer=String(result.data.answer||'').trim();
@@ -2107,8 +2107,8 @@ async function sendMettinAiMessage(){
   mettinAiChatState.messages.push(userMessage);renderMettinAiMessages();input.value='';input.style.height='27px';
   status('mettinAiStatus','Thinking…');
   const history=(Array.isArray(mettinAiChatState.messages)?mettinAiChatState.messages:[]).slice(-14,-1).map(m=>({role:m.role,content:m.content}));
-  if(!window.sb?.functions?.invoke)throw new Error('The Metxon connection is not ready. Reload Mettin and try again.');
-  const response=await window.sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
+  if(typeof sb==='undefined'||!sb?.functions?.invoke)throw new Error('The Metxon connection is not ready. Reload Mettin and try again.');
+  const response=await sb.functions.invoke('cule-in-search',{body:{question,history,assistant:mettinAiChatState.assistant}});
   if(response.error)throw new Error(await mettinAiErrorMessage(response.error));
   if(!response.data||response.data.error)throw new Error(response.data?.error||'No answer was returned.');
   let content=String(response.data.answer||'').trim();
