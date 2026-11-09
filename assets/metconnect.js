@@ -180,7 +180,7 @@ const video=document.getElementById('mc-remote'),audio=document.getElementById('
 video.muted=true;
 if(MC.remote){video.srcObject=MC.remote;audio.srcObject=MC.remote;const hasVideo=MC.remote.getVideoTracks().length>0;video.classList.toggle('mc-hidden',!hasVideo);document.getElementById('mc-audio').classList.toggle('mc-hidden',hasVideo);}else{video.srcObject=null;audio.srcObject=null;video.classList.add('mc-hidden');document.getElementById('mc-audio').classList.remove('mc-hidden');}
 const preview=MC.screen||MC.local;if(preview?.getVideoTracks().length){local.srcObject=preview;local.muted=true;local.classList.remove('mc-hidden');}else local.classList.add('mc-hidden');
-if(audio){audio.volume=.12;audio.muted=false;audio.play().catch(()=>{});}if(video)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
+if(audio){audio.volume=.08;audio.muted=false;audio.play().catch(()=>{});}if(video)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
 }
 async function loadSetup(){const r=await sb.from('metconnect_preferences').select('setup_completed,ringtone_enabled').eq('user_id',profile.id).maybeSingle();if(r.error)throw r.error;MC.setup=!!r.data?.setup_completed;MC.ringtoneEnabled=r.data?.ringtone_enabled!==false;return MC.setup;}
 async function permissions(){
@@ -356,14 +356,14 @@ function newPeer(){
 const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});MC.peer=pc;MC.remote=new MediaStream();MC.ice=[];
 pc.ontrack=e=>{if(e.streams?.[0])MC.remote=e.streams[0];else if(!MC.remote.getTracks().some(t=>t.id===e.track.id))MC.remote.addTrack(e.track);showStage();};
 pc.onicecandidate=e=>{if(!e.candidate)return;const c=e.candidate.toJSON?e.candidate.toJSON():e.candidate;if(MC.active?.id)signal(MC.active.id,'ice',c).then(r=>{if(r.error)console.warn(r.error);});else MC.ice.push(c);};
-pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected'){stopOutgoing();if(MC.active)MC.active.status='accepted';showStage();setStageStatus('Connected. For clear audio, use earphones; keep speaker volume low to prevent microphone feedback.');}if(pc.connectionState==='failed')setStageStatus('Connection failed. A TURN relay may be needed on this network.');};return pc;
+pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected'){stopOutgoing();if(MC.active)MC.active.status='accepted';showStage();setStageStatus('Audio output is capped at 8%. Use earphones. If you hear repeated or rising feedback, end the call immediately.');}if(pc.connectionState==='failed')setStageStatus('Connection failed. A TURN relay may be needed on this network.');};return pc;
 }
 async function startCall(mode){
 if(MC.busy||MC.active||MC.incoming)return;const c=person(MC.selected);if(!c)return status('Choose a saved username.',true);if(MC.currentTab==='bun'&&mode!=='voice')return status('B-UN supports voice calls and messages only. Video and screen sharing are disabled.',true);if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))return status('Choose an active B-UN and make sure your membership is active before calling.',true);MC.busy=true;let local=null,screen=null;
 try{
 let screenPromise=null;if(mode==='screen'){screenPromise=metconnectDisplayCapture()({video:true,audio:false});}
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
-const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:{echoCancellation:'all',noiseSuppression:true,autoGainControl:true,channelCount:1},video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
+const pair=await Promise.all([navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false,channelCount:1},video:mode==='video'}),screenPromise||Promise.resolve(null)]);local=pair[0];screen=pair[1];MC.local=local;MC.screen=screen;const pc=newPeer();
 local.getTracks().forEach(t=>pc.addTrack(t,local));if(screen)screen.getTracks().forEach(t=>pc.addTrack(t,screen));
 const offer=await pc.createOffer();await pc.setLocalDescription(offer);
 const calleeId=c.contact_id||c.owner_id;if(!calleeId)throw Error('The saved contact could not be resolved.');if(MC.currentTab==='bun'&&(!MC.ownBun||!MC.bunStatus?.active))throw Error('Activate your B-UN plan before calling.');
@@ -417,7 +417,7 @@ async function answerIncoming(){
 const call=MC.incoming;if(!call||MC.busy)return;MC.busy=true;let local=null;
 try{hideIncoming();const r=await sb.from('metconnect_calls').select('id,caller_id,callee_id,caller_bun_id,callee_bun_id,call_mode,status,offer_sdp,created_at').eq('id',call.id).eq('callee_id',profile.id).single();if(r.error)throw r.error;if(r.data.status!=='ringing')throw Error('This call is no longer available.');
 if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone or camera access is unavailable.');
-local=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:'all',noiseSuppression:true,autoGainControl:true,channelCount:1},video:r.data.call_mode==='video'});MC.local=local;
+local=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false,channelCount:1},video:r.data.call_mode==='video'});MC.local=local;
 const q=await sb.rpc('metconnect_get_call_peer',{p_call_id:call.id});let peer=Array.isArray(q.data)?q.data[0]:null;if(q.error||!peer)throw Error(q.error?.message||'Caller unavailable.');if(r.data.caller_bun_id){const identity=call._bunIdentity||(await sb.rpc('metconnect_get_incoming_bun_identity',{p_record_id:call.id,p_kind:'call'})).data;const business=identity||MC.bunContacts.find(x=>x.bun_id===r.data.caller_bun_id);if(business)peer={...peer,username:business.username,display_name:business.business_name};}
 MC.active={id:call.id,callerId:call.caller_id,peerId:peer.user_id,peer,mode:r.data.call_mode,role:'callee',status:'ringing'};const pc=newPeer();await pc.setRemoteDescription(new RTCSessionDescription(r.data.offer_sdp));local.getTracks().forEach(t=>pc.addTrack(t,local));await subscribeCall(call.id);
 const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
