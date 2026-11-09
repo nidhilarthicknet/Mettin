@@ -32,7 +32,7 @@ function metconnectDisplayCapture(){
  if(!capture)throw Error('Your current browser does not provide screen capture. MetConnect screen sharing works in supported desktop browsers over HTTPS; Chrome on Android does not expose the browser screen-capture API. Open MetConnect on a desktop browser to share a screen.');
  return capture;
 }
-function audioContext(){if(!MC.audio){const C=window.AudioContext||window.webkitAudioContext;if(C)MC.audio=new C();}return MC.audio;}
+function audioContext(){if(!MC.audio||MC.audio.state==='closed'){const C=window.AudioContext||window.webkitAudioContext;if(C)MC.audio=new C();}return MC.audio;}
 function notificationPermissionLabel(){
  if(!('Notification' in window))return 'Unavailable in this browser';
  if(Notification.permission==='granted')return 'Enabled';
@@ -126,35 +126,45 @@ async function handleIncomingMessage(row){
  if(!MC.pushReady)notifySystem('New MetConnect message','You have a new message from @'+senderName+foul+'.','metconnect-message-'+row.id);
  if(MC.selected)loadMessages(MC.selected);
 }
-// Incoming ringtone: warm, lower-register bell notes with a soft plucked-guitar layer.
-// Keep the fundamental below 525 Hz and remove the piercing high-frequency overtone.
+// Incoming ringtone: low, soft bell-and-plucked notes. Resume the audio context
+// before scheduling, because mobile browsers may suspend it after inactivity.
 function ring(){
  stopRing();
  const ctx=audioContext();if(!ctx)return;
- if(ctx.state==='suspended')ctx.resume().catch(()=>{});
  let live=true;
- const notes=[261.63,329.63,392.00,523.25,392.00,329.63,293.66,349.23,440.00,523.25,440.00,349.23];
+ const notes=[196,246.94,293.66,392,293.66,246.94,220,261.63,329.63,392,329.63,261.63];
  function strike(freq,at){
-  const bell=ctx.createOscillator(),bellGain=ctx.createGain(),filter=ctx.createBiquadFilter();
-  bell.type='sine';bell.frequency.setValueAtTime(freq,at);
-  filter.type='lowpass';filter.frequency.setValueAtTime(1150,at);filter.Q.setValueAtTime(.35,at);
-  bellGain.gain.setValueAtTime(.0001,at);bellGain.gain.exponentialRampToValueAtTime(.045,at+.025);bellGain.gain.exponentialRampToValueAtTime(.0001,at+.48);
-  bell.connect(filter);filter.connect(bellGain);bellGain.connect(ctx.destination);
-  bell.start(at);bell.stop(at+.5);
-  const pluck=ctx.createOscillator(),pluckGain=ctx.createGain(),pluckFilter=ctx.createBiquadFilter();
-  pluck.type='triangle';pluck.frequency.setValueAtTime(freq*.5,at);
-  pluckFilter.type='lowpass';pluckFilter.frequency.setValueAtTime(950,at);
-  pluckGain.gain.setValueAtTime(.0001,at);pluckGain.gain.exponentialRampToValueAtTime(.022,at+.012);pluckGain.gain.exponentialRampToValueAtTime(.0001,at+.22);
-  pluck.connect(pluckFilter);pluckFilter.connect(pluckGain);pluckGain.connect(ctx.destination);
-  pluck.start(at);pluck.stop(at+.23);
+  const osc=ctx.createOscillator(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
+  osc.type='sine';osc.frequency.setValueAtTime(freq,at);
+  filter.type='lowpass';filter.frequency.setValueAtTime(720,at);filter.Q.setValueAtTime(.25,at);
+  gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(.032,at+.035);gain.gain.exponentialRampToValueAtTime(.0001,at+.42);
+  osc.connect(filter);filter.connect(gain);gain.connect(ctx.destination);osc.start(at);osc.stop(at+.44);
  }
- function phrase(){if(!live)return;const now=ctx.currentTime+.04;notes.forEach((f,i)=>strike(f,now+i*.25));MC.ringTimer=setTimeout(phrase,4300);}
- MC.ring=()=>{live=false;if(MC.ringTimer)clearTimeout(MC.ringTimer);MC.ringTimer=null;};phrase();
+ async function phrase(){
+  if(!live)return;
+  try{
+   if(ctx.state==='closed')return;
+   if(ctx.state!=='running')await ctx.resume();
+   if(!live||ctx.state!=='running')return;
+   const now=ctx.currentTime+.06;
+   notes.forEach((freq,i)=>strike(freq,now+i*.22));
+  }catch(e){console.warn('MetConnect ringtone could not start:',e);}
+  if(live)MC.ringTimer=setTimeout(phrase,3900);
+ }
+ MC.ring=()=>{live=false;if(MC.ringTimer)clearTimeout(MC.ringTimer);MC.ringTimer=null;};
+ phrase();
 }
-// Gentle caller ringback, deliberately quieter and lower in level.
+// Quiet caller ringback, kept below the incoming ringtone level.
 function ringCaller(){
- stopRing();const ctx=audioContext();if(!ctx)return;if(ctx.state==='suspended')ctx.resume().catch(()=>{});let live=true;
- function phrase(){if(!live)return;const now=ctx.currentTime+.02;[392,440].forEach((freq,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.setValueAtTime(freq,now);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.035,now+.05);gain.gain.setValueAtTime(.035,now+.72);gain.gain.exponentialRampToValueAtTime(.0001,now+.85);osc.connect(gain);gain.connect(ctx.destination);osc.start(now);osc.stop(now+.87);});MC.ringTimer=setTimeout(phrase,4100);}
+ stopRing();const ctx=audioContext();if(!ctx)return;let live=true;
+ async function phrase(){
+  if(!live)return;
+  try{if(ctx.state!=='running')await ctx.resume();if(!live||ctx.state!=='running')return;
+   const now=ctx.currentTime+.04;
+   [293.66,329.63].forEach((freq,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.setValueAtTime(freq,now);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.022,now+.05);gain.gain.setValueAtTime(.022,now+.55);gain.gain.exponentialRampToValueAtTime(.0001,now+.68);osc.connect(gain);gain.connect(ctx.destination);osc.start(now);osc.stop(now+.7);});
+  }catch(e){console.warn('MetConnect ringback could not start:',e);}
+  if(live)MC.ringTimer=setTimeout(phrase,4200);
+ }
  MC.ring=()=>{live=false;if(MC.ringTimer)clearTimeout(MC.ringTimer);MC.ringTimer=null;};phrase();
 }
 
@@ -165,9 +175,12 @@ function showStage(){
 ensureLayer();const c=MC.active,w=document.getElementById('mc-stage-wrap');if(!c){w.classList.add('mc-hidden');return;}w.classList.remove('mc-hidden');
 document.getElementById('mc-stage-name').textContent='@'+(c.peer?.username||'Metxon user');document.getElementById('mc-stage-mode').textContent=labels[c.mode]||'MetConnect';document.getElementById('mc-stage-state').textContent=c.status==='ringing'?'Calling…':'Active';
 const video=document.getElementById('mc-remote'),audio=document.getElementById('mc-remote-audio'),local=document.getElementById('mc-local');
-if(MC.remote){video.srcObject=MC.remote;audio.srcObject=MC.remote;const hasVideo=MC.remote.getVideoTracks().length>0;video.classList.toggle('mc-hidden',!hasVideo);document.getElementById('mc-audio').classList.toggle('mc-hidden',hasVideo);video.muted=true;}else{video.classList.add('mc-hidden');document.getElementById('mc-audio').classList.remove('mc-hidden');}
-const preview=MC.screen||MC.local;if(preview?.getVideoTracks().length){local.srcObject=preview;local.classList.remove('mc-hidden');}else local.classList.add('mc-hidden');
-if(audio){audio.volume=.82;audio.muted=false;audio.play().catch(()=>{});}if(video)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
+// The remote video element is ALWAYS muted. Remote sound is played exactly once
+// through the dedicated audio element to prevent speaker/microphone feedback.
+video.muted=true;
+if(MC.remote){video.srcObject=MC.remote;audio.srcObject=MC.remote;const hasVideo=MC.remote.getVideoTracks().length>0;video.classList.toggle('mc-hidden',!hasVideo);document.getElementById('mc-audio').classList.toggle('mc-hidden',hasVideo);}else{video.srcObject=null;audio.srcObject=null;video.classList.add('mc-hidden');document.getElementById('mc-audio').classList.remove('mc-hidden');}
+const preview=MC.screen||MC.local;if(preview?.getVideoTracks().length){local.srcObject=preview;local.muted=true;local.classList.remove('mc-hidden');}else local.classList.add('mc-hidden');
+if(audio){audio.volume=.28;audio.muted=false;audio.play().catch(()=>{});}if(video)video.play().catch(()=>{});if(MC.speaker&&audio.setSinkId)audio.setSinkId(MC.speaker).catch(()=>{});
 }
 async function loadSetup(){const r=await sb.from('metconnect_preferences').select('setup_completed,ringtone_enabled').eq('user_id',profile.id).maybeSingle();if(r.error)throw r.error;MC.setup=!!r.data?.setup_completed;MC.ringtoneEnabled=r.data?.ringtone_enabled!==false;return MC.setup;}
 async function permissions(){
@@ -537,7 +550,7 @@ async function addBunContact(e){
 
 function bind(){
 const callControls=document.getElementById('mc-call-controls'),mainGrid=document.querySelector('#mc-root .mc-grid');if(callControls&&mainGrid&&callControls.parentElement!==mainGrid.parentElement)mainGrid.insertAdjacentElement('afterend',callControls);
-document.getElementById('mc-add').onsubmit=addContact;document.getElementById('mc-send').onsubmit=sendMessage;document.getElementById('mc-remove').onclick=removeContact;document.getElementById('mc-block').onclick=blockContact;document.getElementById('mc-report').onclick=reportContact;document.getElementById('mc-refresh').onclick=()=>{refreshContacts();if(MC.currentTab==='bun'){loadBunStatus();refreshBunContacts();}};document.getElementById('mc-permissions').onclick=permissions;document.getElementById('mc-speaker').onclick=chooseSpeaker;document.getElementById('mc-notify').onclick=requestNotifications;document.getElementById('mc-notify-setup').onclick=requestNotifications;document.getElementById('mc-continue').onclick=async()=>{try{const ctx=audioContext();if(ctx&&ctx.state==='suspended')await ctx.resume();}catch(e){}const alertsReady=await requestNotifications();await finishSetup();if(!alertsReady)status('MetConnect is ready, but this phone cannot receive calls while other apps are open until you enable notifications. Tap Enable notifications in the MetConnect header.',true);};updateNotificationUi();
+document.getElementById('mc-add').onsubmit=addContact;document.getElementById('mc-send').onsubmit=sendMessage;document.getElementById('mc-remove').onclick=removeContact;document.getElementById('mc-block').onclick=blockContact;document.getElementById('mc-report').onclick=reportContact;document.getElementById('mc-refresh').onclick=()=>{refreshContacts();if(MC.currentTab==='bun'){loadBunStatus();refreshBunContacts();}};document.getElementById('mc-permissions').onclick=permissions;document.getElementById('mc-speaker').onclick=chooseSpeaker;document.getElementById('mc-notify').onclick=requestNotifications;document.getElementById('mc-notify-setup').onclick=requestNotifications;document.getElementById('mc-continue').onclick=async()=>{try{const ctx=audioContext();if(ctx&&ctx.state!=='running')await ctx.resume();}catch(e){}const alertsReady=await requestNotifications();await finishSetup();if(!alertsReady)status('MetConnect is ready, but this phone cannot receive calls while other apps are open until you enable notifications. Tap Enable notifications in the MetConnect header.',true);};updateNotificationUi();
 const setTab=tab=>{
  if(tab!=='bun')MC.bunAction=null;
  MC.currentTab=tab;
