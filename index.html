@@ -2094,20 +2094,27 @@ let metBhcChatChannel=null;
 async function bhcInitTeamChat(fixtureId,teamA,teamB,hostId='mplChat'){
  const host=$(hostId);if(!host)return;
  if(metBhcChatChannel)sb.removeChannel(metBhcChatChannel);
+ const prefix=hostId==='mplChat'?'mpl':'bhc';
  const mem=await sb.from('metbhc_team_members').select('team_id').in('team_id',[teamA,teamB]).eq('user_id',profile.id).maybeSingle();
- if(mem.error||!mem.data){host.innerHTML='<div class="bhc-chat"><b>Team chat</b><p class="bhc-muted">Only registered players can access team chat.</p></div>';return;}
+ if(mem.error||!mem.data){host.innerHTML='<div class="bhc-chat"><b>Team chat</b><p class="bhc-muted">Only registered players can access tournament chat.</p></div>';return;}
  const teamId=mem.data.team_id;
- host.innerHTML='<div class="bhc-chat"><div class="bhc-invite"><b>🔒 Your team · Private chat</b><span class="bhc-pill">TEAM ONLY</span></div><div class="bhc-chat-log" id="mplChatLog"><div class="bhc-muted">Loading messages…</div></div><form class="bhc-chat-compose" id="mplChatForm"><input class="bhc-input" id="mplChatInput" maxlength="1000" placeholder="Discuss your match privately…"><button class="bhc-btn primary">Send</button></form></div>';
+ host.innerHTML='<div class="bhc-chat"><div class="bhc-invite"><b>🔒 Your team · Private chat</b><span class="bhc-pill">TEAM ONLY</span></div><div class="bhc-chat-log" id="'+prefix+'PrivateLog"><div class="bhc-muted">Loading messages…</div></div><form class="bhc-chat-compose" id="'+prefix+'PrivateForm"><input class="bhc-input" id="'+prefix+'PrivateInput" maxlength="1000" placeholder="Discuss your match privately…"><button class="bhc-btn primary">Send</button></form></div><div class="bhc-chat"><div class="bhc-invite"><b>💬 Match chat · Both teams</b><span class="bhc-pill">MATCH ROOM</span></div><div class="bhc-chat-log" id="'+prefix+'MatchLog"><div class="bhc-muted">Loading match chat…</div></div><form class="bhc-chat-compose" id="'+prefix+'MatchForm"><input class="bhc-input" id="'+prefix+'MatchInput" maxlength="1000" placeholder="Send a message to the other team…"><button class="bhc-btn primary">Send</button></form></div>';
  async function load(){
-  const r=await sb.from('metbhc_team_chat').select('id,sender_id,message,created_at,profiles(username)').eq('fixture_id',fixtureId).eq('team_id',teamId).order('created_at',{ascending:true}).limit(100);
-  const log=$('mplChatLog');if(!log)return;
-  if(r.error){log.textContent='Chat could not load: '+r.error.message;return;}
-  log.innerHTML=(r.data||[]).map(m=>'<div class="bhc-chat-msg"><small>'+bhcEsc(m.profiles?.username||'Teammate')+' · '+new Date(m.created_at).toLocaleTimeString()+'</small>'+bhcEsc(m.message)+'</div>').join('')||'<div class="bhc-muted">No messages yet. Your team chat is private.</div>';
-  log.scrollTop=log.scrollHeight;
+  const [priv,pub]=await Promise.all([
+   sb.from('metbhc_team_chat').select('id,sender_id,message,created_at,profiles(username)').eq('fixture_id',fixtureId).eq('team_id',teamId).order('created_at',{ascending:true}).limit(100),
+   sb.from('metbhc_match_chat').select('id,sender_id,message,created_at,profiles(username)').eq('fixture_id',fixtureId).order('created_at',{ascending:true}).limit(100)
+  ]);
+  const pl=$(prefix+'PrivateLog'),ml=$(prefix+'MatchLog');
+  if(pl){if(priv.error)pl.textContent='Private chat unavailable: '+priv.error.message;else pl.innerHTML=(priv.data||[]).map(m=>'<div class="bhc-chat-msg"><small>'+bhcEsc(m.profiles?.username||'Teammate')+' · '+new Date(m.created_at).toLocaleTimeString()+'</small>'+bhcEsc(m.message)+'</div>').join('')||'<div class="bhc-muted">No private team messages yet.</div>';pl.scrollTop=pl.scrollHeight;}
+  if(ml){if(pub.error)ml.textContent='Match chat unavailable: '+pub.error.message;else ml.innerHTML=(pub.data||[]).map(m=>'<div class="bhc-chat-msg"><small>'+bhcEsc(m.profiles?.username||'Player')+' · '+new Date(m.created_at).toLocaleTimeString()+'</small>'+bhcEsc(m.message)+'</div>').join('')||'<div class="bhc-muted">No match messages yet.</div>';ml.scrollTop=ml.scrollHeight;}
  }
- $('mplChatForm').onsubmit=async e=>{e.preventDefault();const input=$('mplChatInput'),msg=input.value.trim();if(!msg)return;input.disabled=true;try{const r=await rpc('metbhc_send_team_chat',{p_fixture_id:fixtureId,p_message:msg});input.value='';await load();}catch(err){toast(err.message||'Message not sent.','error');}finally{input.disabled=false;input.focus();}};
+ $(prefix+'PrivateForm').onsubmit=async e=>{e.preventDefault();const input=$(prefix+'PrivateInput'),msg=input.value.trim();if(!msg)return;input.disabled=true;try{await rpc('metbhc_send_team_chat',{p_fixture_id:fixtureId,p_message:msg});input.value='';await load();}catch(err){toast(err.message||'Private message not sent.','error');}finally{input.disabled=false;input.focus();}};
+ $(prefix+'MatchForm').onsubmit=async e=>{e.preventDefault();const input=$(prefix+'MatchInput'),msg=input.value.trim();if(!msg)return;input.disabled=true;try{await rpc('metbhc_send_match_chat',{p_fixture_id:fixtureId,p_message:msg});input.value='';await load();}catch(err){toast(err.message||'Match message not sent.','error');}finally{input.disabled=false;input.focus();}};
  await load();
- metBhcChatChannel=sb.channel('metbhc-team-chat-'+fixtureId+'-'+teamId).on('postgres_changes',{event:'INSERT',schema:'public',table:'metbhc_team_chat',filter:'fixture_id=eq.'+fixtureId},()=>load()).subscribe();
+ metBhcChatChannel=sb.channel('metbhc-chat-'+fixtureId+'-'+prefix)
+  .on('postgres_changes',{event:'INSERT',schema:'public',table:'metbhc_team_chat',filter:'fixture_id=eq.'+fixtureId},()=>load())
+  .on('postgres_changes',{event:'INSERT',schema:'public',table:'metbhc_match_chat',filter:'fixture_id=eq.'+fixtureId},()=>load())
+  .subscribe();
 }
 
 async function bhcMplFixture(id,leagueId){
