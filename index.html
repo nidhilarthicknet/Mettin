@@ -144,7 +144,7 @@ const APPS=[
  {id:'met_cloud',name:'Met-Cloud',price:0,desc:'Cloud files and saved messages from your Metxon account.',icon:'☁'},
  {id:'met_na',name:'Met-Na',price:0,desc:'Metxon companion app and connected services.',icon:'✦'},
  {id:'metconnect',name:'MetConnect',price:5000,desc:'Private username-based messaging, voice calls, video calls and browser-approved screen sharing.',icon:'◉'},
- {id:'met_bhc',name:'MetBHC',price:0,desc:'Metxon Board for HandCricket · real-time multiplayer hand cricket from 0 to 10.',icon:'🏏'}
+ {id:'met_bhc',name:'MetBHC',price:5000,desc:'Metxon Board for HandCricket · multiplayer hand cricket and Metxon Premier League.',icon:'🏏'}
 ];
 const SMES=[
  {id:'SME-01',name:'Titanium (Ti)',jpLakh:199.60,func:'High-Density Thermal & Blast Shielding',cap:'Protects server cores and bank vaults against massive energy overloads.'},
@@ -555,7 +555,7 @@ async function loadStore(){
  $('storeGrid').innerHTML=officialCards+(communityCards||'<div class="empty">No community apps published yet. Create one in Develop.</div>');
  $('customStoreGrid').innerHTML='';
 }
-async function installApp(id){const a=APPS.find(x=>x.id===id);if(!a)return;if(!confirm(a.price===0?'Add '+a.name+' to your apps?':'Install '+a.name+' for '+moneyJp(a.price/100)+'? Charged from the shared InstaPay balance.'))return;let p='';if(a.price>0){p=prompt('Enter your MetPay transaction password to confirm.');if(p===null)return;}try{const r=id==='met_bhc'?await rpc('metbhc_install_app',{}):await rpc('mettin_install_nebula_app',{p_app_id:id,p_metpay_password:p});if(!r||!r.installed)throw new Error('Installation did not complete.');await getProfile();await refreshOverview();await loadStore();await loadMetPay();if(id==='metconnect'&&typeof initMetConnectBackground==='function')await initMetConnectBackground();toast(r.charged?'Installed '+a.name+' for '+moneyJp(r.price_jp)+'.':Number(r.price_jp)===0?'Added '+a.name+' to your apps.':'App already installed.','success');}catch(e){toast(e.message||'Installation failed.','error');}}
+async function installApp(id){const a=APPS.find(x=>x.id===id);if(!a)return;if(!confirm(a.price===0?'Add '+a.name+' to your apps?':'Install '+a.name+' for '+moneyJp(a.price/100)+'? Charged from the shared InstaPay balance.'))return;let p='';if(a.price>0){p=prompt('Enter your MetPay transaction password to confirm.');if(p===null)return;}try{const r=id==='met_bhc'?await rpc('metbhc_install_app',{p_metpay_password:p}):await rpc('mettin_install_nebula_app',{p_app_id:id,p_metpay_password:p});if(!r||!r.installed)throw new Error('Installation did not complete.');await getProfile();await refreshOverview();await loadStore();await loadMetPay();if(id==='metconnect'&&typeof initMetConnectBackground==='function')await initMetConnectBackground();toast(r.charged?'Installed '+a.name+' for '+moneyJp(r.price_jp)+'.':Number(r.price_jp)===0?'Added '+a.name+' to your apps.':'App already installed.','success');}catch(e){toast(e.message||'Installation failed.','error');}}
 async function installCustomApp(id){const q=await sb.from('mettin_created_apps').select('title,price_jp,creator_id').eq('id',id).eq('status','published').single();if(q.error)return toast(q.error.message,'error');if(!confirm('Install '+q.data.title+' for '+moneyJp(q.data.price_jp)+'?'))return;let p='';if(q.data.price_jp>0&&q.data.creator_id!==profile.id){p=prompt('Enter your MetPay transaction password.');if(p===null)return;}try{const r=await rpc('mettin_install_created_app',{p_app_id:id,p_metpay_password:p});if(!r||!r.installed)throw new Error('Installation did not complete.');await loadStore();await getProfile();await refreshOverview();toast('App installed: '+r.app_name,'success');}catch(e){toast(e.message||'App install failed.','error');}}
 async function launchCustomApp(id){
  try{
@@ -2021,9 +2021,84 @@ async function bhcAction(fn,args){
  finally{metBhcBusy=false;}
 }
 async function bhcRenderMPL(){
- const r=await sb.from('metbhc_matches').select('id,player1_id,player2_id,status,state,created_at').in('status',['finished']).order('updated_at',{ascending:false}).limit(30);
- const rows=r.data||[];
- bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">METXON PREMIER LEAGUE</span><h2>MPL · Recent matches</h2><p class="bhc-muted">Your completed match results will appear here. Official season standings can be added as the league grows.</p>'+(rows.length?rows.map(m=>'<div class="bhc-log">Match · '+new Date(m.created_at).toLocaleDateString()+' · '+(m.state?.phase==='finished'?'Completed':'Result saved')+'</div>').join(''):'<div class="bhc-status">No completed matches yet. Play a match to begin your MPL record.</div>')+'</div>';
+ bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">METXON PREMIER LEAGUE</span><h2>MPL · Tournament centre</h2><p class="bhc-muted">Create a tournament, organise teams, follow the fixture graph and play when every registered player has arrived.</p><div class="bhc-scoregrid"><button class="bhc-stat" id="mplCreate" style="text-align:left;color:inherit"><span class="bhc-muted">01 · ORGANISE</span><strong style="font-size:1.25rem">Create MPL</strong><small>Register 2–4 teams</small></button><button class="bhc-stat" id="mplFind" style="text-align:left;color:inherit"><span class="bhc-muted">02 · JOIN</span><strong style="font-size:1.25rem">Enter username</strong><small>Find your team / league</small></button><button class="bhc-stat" id="mplSchedule" style="text-align:left;color:inherit"><span class="bhc-muted">03 · FIXTURES</span><strong style="font-size:1.25rem">Match schedule</strong><small>Upcoming and live games</small></button><button class="bhc-stat" id="mplResults" style="text-align:left;color:inherit"><span class="bhc-muted">04 · LEAGUE</span><strong style="font-size:1.25rem">Standings</strong><small>Results and progress</small></button></div></div><div id="mplSub"></div>';
+ $('mplCreate').onclick=bhcMplCreateForm;
+ $('mplFind').onclick=bhcMplFind;
+ $('mplSchedule').onclick=()=>bhcMplList('schedule');
+ $('mplResults').onclick=()=>bhcMplList('results');
+}
+function bhcMplCreateForm(){
+ const host=$('mplSub');
+ host.innerHTML='<div class="bhc-card"><h3>Create a new MPL tournament</h3><p class="bhc-muted">Every team needs 2 or 3 registered Metxon usernames. The creator can also be a player.</p><label>Number of teams</label><select id="mplTeamCount" class="bhc-input"><option value="2">2 teams</option><option value="3">3 teams</option><option value="4">4 teams</option></select><div id="mplFormatWrap" style="margin:12px 0"></div><div id="mplTeams"></div><button class="bhc-btn primary" id="mplCreateSchedule">Create schedule</button><div id="mplCreateStatus" class="bhc-status" aria-live="polite"></div></div>';
+ const count=$('mplTeamCount');
+ function draw(){
+  const n=Number(count.value),format=$('mplFormatWrap');
+  format.innerHTML=n===4?'<label>Choose league-stage matches</label><select id="mplFormat" class="bhc-input"><option value="6">6 league matches + playoffs</option><option value="8">8 league matches + playoffs</option><option value="10">10 league matches + playoffs</option></select>':'<div class="bhc-status">'+(n===2?'2 teams · 1 final match.': '3 teams · 1 semifinal, 1 eliminator and 1 final.')+'</div>';
+  $('mplTeams').innerHTML=Array.from({length:n},(_,i)=>'<div class="bhc-card"><h3>Team '+(i+1)+'</h3><label>Team name</label><input class="bhc-input" maxlength="32" id="mplTeamName'+i+'" placeholder="Enter team '+(i+1)+' name"><label style="display:block;margin-top:10px">Player usernames (minimum 2, maximum 3)</label><input class="bhc-input" id="mplUser'+i+'_0" placeholder="Player 1 username" maxlength="40" style="margin:5px 0"><input class="bhc-input" id="mplUser'+i+'_1" placeholder="Player 2 username" maxlength="40" style="margin:5px 0"><div id="mplExtra'+i+'"></div><button class="bhc-btn" type="button" data-mpl-add="'+i+'">＋ Add third player</button></div>').join('');
+  $('mplTeams').querySelectorAll('[data-mpl-add]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.mplAdd),slot=$('mplExtra'+i);if(slot.innerHTML)return;slot.innerHTML='<input class="bhc-input" id="mplUser'+i+'_2" placeholder="Player 3 username" maxlength="40" style="margin:5px 0">';b.disabled=true;b.textContent='Maximum 3 players';});
+ }
+ count.onchange=draw;draw();
+ $('mplCreateSchedule').onclick=async()=>{
+  const n=Number(count.value),teams=[];
+  for(let i=0;i<n;i++){const usernames=[0,1,2].map(j=>$('mplUser'+i+'_'+j)?.value.trim()||'').filter(Boolean);teams.push({name:$('mplTeamName'+i).value.trim(),usernames});}
+  const st=$('mplCreateStatus');st.textContent='Creating teams and generating the fixture graph…';
+  try{const r=await rpc('metbhc_create_league',{p_teams:teams,p_format_matches:n===4?Number($('mplFormat').value):0});await bhcMplOpenLeague(r.league_id);toast('MPL schedule created.','success');}
+  catch(e){st.textContent=e.message||'Could not create the tournament.';}
+ };
+}
+async function bhcMplFind(){
+ const host=$('mplSub');
+ host.innerHTML='<div class="bhc-card"><h3>Enter username</h3><p class="bhc-muted">Find a tournament team using a registered Metxon username.</p><div class="bhc-actions"><input class="bhc-input" id="mplFindUsername" placeholder="Metxon username"><button class="bhc-btn primary" id="mplFindGo">Find teams</button></div><div id="mplFindResult"></div></div>';
+ $('mplFindGo').onclick=async()=>{
+  const u=$('mplFindUsername').value.trim(),out=$('mplFindResult');if(!u){out.textContent='Enter a username.';return;}
+  out.textContent='Searching…';
+  const p=await sb.from('profiles').select('id,username,display_name').ilike('username',u).maybeSingle();
+  if(p.error||!p.data){out.textContent='Metxon username not found.';return;}
+  const m=await sb.from('metbhc_team_members').select('team_id,metbhc_teams(id,team_name,league_id,metbhc_leagues(id,status,created_at))').eq('user_id',p.data.id);
+  if(m.error){out.textContent=m.error.message;return;}
+  const entries=m.data||[];
+  out.innerHTML=entries.length?entries.map(x=>'<div class="bhc-log"><b>'+bhcEsc(x.metbhc_teams?.team_name||'Team')+'</b> · '+bhcEsc(p.data.username)+'<button class="bhc-btn" style="margin-left:8px" data-mpl-open="'+(x.metbhc_teams?.league_id||'')+'">Open tournament</button></div>').join(''):'This username is not registered in an MPL team yet.';
+  out.querySelectorAll('[data-mpl-open]').forEach(b=>b.onclick=()=>bhcMplOpenLeague(b.dataset.mplOpen));
+ };
+}
+async function bhcMplList(mode){
+ const host=$('mplSub');host.innerHTML='<div class="bhc-card"><h3>'+(mode==='results'?'MPL standings & results':'Your match schedules')+'</h3><div class="bhc-status">Loading your tournaments…</div></div>';
+ const r=await sb.from('metbhc_leagues').select('id,creator_id,team_count,format_matches,status,created_at').order('created_at',{ascending:false}).limit(40);
+ if(r.error){host.innerHTML='<div class="bhc-status">'+bhcEsc(r.error.message)+'</div>';return;}
+ const leagues=r.data||[];
+ host.innerHTML='<div class="bhc-card"><h3>'+(mode==='results'?'Tournaments & results':'Upcoming fixtures')+'</h3>'+(leagues.length?leagues.map(l=>'<div class="bhc-log bhc-invite"><span><b>'+l.team_count+' teams</b> · '+(l.format_matches||'final format')+' · '+l.status+'</span><button class="bhc-btn" data-mpl-open="'+l.id+'">Open graph</button></div>').join(''):'No MPL tournaments found. Create one to begin.')+'</div>';
+ host.querySelectorAll('[data-mpl-open]').forEach(b=>b.onclick=()=>bhcMplOpenLeague(b.dataset.mplOpen));
+}
+async function bhcMplOpenLeague(id){
+ const host=$('mplSub');host.innerHTML='<div class="bhc-card"><div class="bhc-status">Loading tournament graph…</div></div>';
+ const [lr,tr,fr]=await Promise.all([
+  sb.from('metbhc_leagues').select('*').eq('id',id).single(),
+  sb.from('metbhc_teams').select('id,team_name,seed').eq('league_id',id).order('seed'),
+  sb.from('metbhc_fixtures').select('*').eq('league_id',id).order('match_no')
+ ]);
+ if(lr.error||tr.error||fr.error){host.innerHTML='<div class="bhc-status">'+bhcEsc(lr.error?.message||tr.error?.message||fr.error?.message)+'</div>';return;}
+ const teams=tr.data||[],fixtures=fr.data||[];
+ const teamName=tid=>teams.find(t=>t.id===tid)?.team_name||'Team';
+ host.innerHTML='<div class="bhc-card"><div class="bhc-invite"><div><span class="bhc-pill">MPL TOURNAMENT</span><h3>'+teams.length+' Team Fixture Graph</h3><p class="bhc-muted">Select a fixture to see player attendance and enter the match.</p></div><button class="bhc-btn" id="mplBack">Back</button></div><div class="bhc-scoregrid">'+teams.map(t=>'<div class="bhc-stat"><span class="bhc-muted">TEAM '+t.seed+'</span><strong style="font-size:1.2rem">'+bhcEsc(t.team_name)+'</strong></div>').join('')+'</div><div class="bhc-graph">'+fixtures.map((f,i)=>'<div class="bhc-fixture"><div class="bhc-fixture-top"><span class="bhc-pill">'+bhcEsc(f.stage.toUpperCase())+' · MATCH '+f.match_no+'</span><span class="bhc-muted">'+bhcEsc(f.status)+'</span></div><div class="bhc-fixture-teams"><b>'+bhcEsc(teamName(f.team_a))+'</b><span>VS</span><b>'+bhcEsc(teamName(f.team_b))+'</b></div><button class="bhc-btn primary" data-mpl-fixture="'+f.id+'">Open match</button></div>'+(i<fixtures.length-1?'<div class="bhc-connector"></div>':'')).join('')+'</div></div>';
+ $('mplBack').onclick=bhcRenderMPL;
+ host.querySelectorAll('[data-mpl-fixture]').forEach(b=>b.onclick=()=>bhcMplFixture(b.dataset.mplFixture,id));
+}
+async function bhcMplFixture(id,leagueId){
+ const host=$('mplSub');
+ const [fr,teamsR,arrR]=await Promise.all([
+  sb.from('metbhc_fixtures').select('*').eq('id',id).single(),
+  sb.from('metbhc_teams').select('id,team_name,seed').eq('league_id',leagueId),
+  sb.from('metbhc_fixture_arrivals').select('user_id').eq('fixture_id',id)
+ ]);
+ if(fr.error||teamsR.error){host.innerHTML='<div class="bhc-status">Could not load this fixture.</div>';return;}
+ const f=fr.data,teams=teamsR.data||[],arrived=new Set((arrR.data||[]).map(x=>x.user_id));
+ const teamName=tid=>teams.find(t=>t.id===tid)?.team_name||'Team';
+ const [ma,mb]=await Promise.all([sb.from('metbhc_team_members').select('user_id,member_no,profiles(username)').eq('team_id',f.team_a),sb.from('metbhc_team_members').select('user_id,member_no,profiles(username)').eq('team_id',f.team_b)]);
+ const a=ma.data||[],b=mb.data||[];
+ host.innerHTML='<div class="bhc-card"><button class="bhc-btn" id="mplGraphBack">← Fixture graph</button><h3 style="margin-top:14px">'+bhcEsc(teamName(f.team_a))+' vs '+bhcEsc(teamName(f.team_b))+'</h3><span class="bhc-pill">'+bhcEsc(f.stage.toUpperCase())+'</span><p class="bhc-muted">Every registered player from both teams must arrive before the league organiser can start the match.</p><div class="bhc-scoregrid"><div class="bhc-stat"><b>'+bhcEsc(teamName(f.team_a))+'</b><strong>'+a.filter(x=>arrived.has(x.user_id)).length+'/'+a.length+'</strong>'+a.map(x=>'<small class="bhc-log">'+bhcEsc(x.profiles?.username||'Player')+' · '+(arrived.has(x.user_id)?'Arrived':'Waiting')+'</small>').join('')+'</div><div class="bhc-stat"><b>'+bhcEsc(teamName(f.team_b))+'</b><strong>'+b.filter(x=>arrived.has(x.user_id)).length+'/'+b.length+'</strong>'+b.map(x=>'<small class="bhc-log">'+bhcEsc(x.profiles?.username||'Player')+' · '+(arrived.has(x.user_id)?'Arrived':'Waiting')+'</small>').join('')+'</div></div><div class="bhc-actions" style="margin-top:14px"><button class="bhc-btn primary" id="mplArrive">I am here</button><button class="bhc-btn" id="mplStart" '+(f.status==='ready'?'':'disabled')+'>Start match (organiser)</button></div><div id="mplFixtureStatus" class="bhc-status">Status: '+bhcEsc(f.status)+'</div></div>';
+ $('mplGraphBack').onclick=()=>bhcMplOpenLeague(leagueId);
+ $('mplArrive').onclick=async()=>{try{const r=await rpc('metbhc_arrive_fixture',{p_fixture_id:id});$('mplFixtureStatus').textContent='Attendance: '+r.team_a_arrived+'/'+r.team_a_total+' · '+r.team_b_arrived+'/'+r.team_b_total+(r.ready?' · All players arrived. Ready to start!':' · Waiting for players.');if(r.ready)$('mplStart').disabled=false;}catch(e){$('mplFixtureStatus').textContent=e.message;}};
+ $('mplStart').onclick=async()=>{try{const m=await rpc('metbhc_start_fixture',{p_fixture_id:id});metBhcMatch=m;bhcSubscribe();bhcRenderMatch();}catch(e){$('mplFixtureStatus').textContent=e.message;}};
 }
 async function bhcRenderProfile(){
  const r=await sb.from('metbhc_matches').select('id,status,state').or('player1_id.eq.'+profile.id+',player2_id.eq.'+profile.id).limit(100);
