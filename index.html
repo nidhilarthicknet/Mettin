@@ -2137,15 +2137,17 @@ async function bhcMplFixture(id,leagueId){
 }
 async function bhcRenderProfile(){
  const cutoff=new Date(Date.now()-7*24*60*60*1000).toISOString();
- const [allR,weekR]=await Promise.all([
-  sb.from('metbhc_matches').select('id,status,state,created_at').or('player1_id.eq.'+profile.id+',player2_id.eq.'+profile.id).order('created_at',{ascending:false}).limit(300),
-  sb.from('metbhc_matches').select('id,status,state,created_at').or('player1_id.eq.'+profile.id+',player2_id.eq.'+profile.id).gte('created_at',cutoff).order('created_at',{ascending:false}).limit(100)
+ const [allR,weekR,memberR]=await Promise.all([
+  sb.from('metbhc_matches').select('id,status,state,created_at').eq('status','finished').order('created_at',{ascending:false}).limit(300),
+  sb.from('metbhc_matches').select('id,status,state,created_at').eq('status','finished').gte('created_at',cutoff).order('created_at',{ascending:false}).limit(100),
+  sb.from('metbhc_team_members').select('team_id').eq('user_id',profile.id)
  ]);
- const rows=allR.data||[],finished=rows.filter(m=>m.status==='finished'),wins=finished.filter(m=>String(m.state?.winner)===String(profile.id)).length;
- const single=finished.filter(m=>!m.state?.teamMatch),team=finished.filter(m=>m.state?.teamMatch);
+ const rows=allR.data||[],finished=rows.filter(m=>m.status==='finished'),single=finished.filter(m=>!m.state?.teamMatch),team=finished.filter(m=>m.state?.teamMatch);
+ const myTeams=new Set((memberR.data||[]).map(x=>x.team_id));
+ const wins=single.filter(m=>String(m.state?.winner)===String(profile.id)).length+team.filter(m=>myTeams.has(m.state?.winnerTeam)).length;
  const rating=Math.max(100,1000+wins*20-(finished.length-wins)*10);
- const avatar=session?.user?.user_metadata?.avatar_url||session?.user?.user_metadata?.picture||'';
- bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">PLAYER PROFILE</span><div class="bhc-invite" style="justify-content:flex-start;margin:12px 0">'+(avatar?'<img src="'+bhcEsc(avatar)+'" alt="Profile photo" style="width:76px;height:76px;border-radius:50%;object-fit:cover;border:2px solid #56d9c1">':'<div style="width:76px;height:76px;border-radius:50%;background:#164252;display:grid;place-items:center;font-size:2rem">🏏</div>')+'<div><h2 style="margin:0">'+bhcEsc(profile.display_name||profile.username||'Metxon Player')+'</h2><p class="bhc-muted">@'+bhcEsc(profile.username||'')+'</p><span class="bhc-pill">RATING '+rating+'</span></div></div><div class="bhc-scoregrid"><div class="bhc-stat"><span class="bhc-muted">SINGLE MATCHES</span><strong>'+single.length+'</strong></div><div class="bhc-stat"><span class="bhc-muted">TEAM MATCHES</span><strong>'+team.length+'</strong></div><div class="bhc-stat"><span class="bhc-muted">WINS</span><strong>'+wins+'</strong></div></div></div><div class="bhc-card"><h3>Last 7 days · Game history</h3>'+(weekR.data?.length?weekR.data.map(m=>'<div class="bhc-log"><b>'+(m.state?.teamMatch?'MPL team match':'Single match')+'</b> · '+new Date(m.created_at).toLocaleString()+' · '+(m.status==='finished'?(String(m.state?.winner)===String(profile.id)?'Won':'Completed'):'In progress')+'</div>').join(''):'<div class="bhc-status">No games recorded in the last seven days.</div>')+'</div>';
+ const avatar=profile.avatar_url||session?.user?.user_metadata?.avatar_url||session?.user?.user_metadata?.picture||'';
+ bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">PLAYER PROFILE</span><div class="bhc-invite" style="justify-content:flex-start;margin:12px 0">'+(avatar?'<img src="'+bhcEsc(avatar)+'" alt="Profile photo" style="width:76px;height:76px;border-radius:50%;object-fit:cover;border:2px solid #56d9c1">':'<div style="width:76px;height:76px;border-radius:50%;background:#164252;display:grid;place-items:center;font-size:2rem">🏏</div>')+'<div><h2 style="margin:0">'+bhcEsc(profile.display_name||profile.username||'Metxon Player')+'</h2><p class="bhc-muted">@'+bhcEsc(profile.username||'')+'</p><span class="bhc-pill">RATING '+rating+'</span></div></div><div class="bhc-scoregrid"><div class="bhc-stat"><span class="bhc-muted">SINGLE MATCHES</span><strong>'+single.length+'</strong></div><div class="bhc-stat"><span class="bhc-muted">TEAM MATCHES</span><strong>'+team.length+'</strong></div><div class="bhc-stat"><span class="bhc-muted">WINS</span><strong>'+wins+'</strong></div></div></div><div class="bhc-card"><h3>Last 7 days · Game history</h3>'+(weekR.data?.length?weekR.data.map(m=>'<div class="bhc-log"><b>'+(m.state?.teamMatch?'MPL team match':'Single match')+'</b> · '+new Date(m.created_at).toLocaleString()+' · '+(m.status==='finished'?((String(m.state?.winner)===String(profile.id)||myTeams.has(m.state?.winnerTeam))?'Won':'Completed'):'In progress')+'</div>').join(''):'<div class="bhc-status">No games recorded in the last seven days.</div>')+'</div>';
 }
 
 function launchApp(id){
