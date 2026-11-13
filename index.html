@@ -2006,13 +2006,14 @@ function bhcRenderMatch(){
   panel='<div class="bhc-card"><span class="bhc-pill">MATCH COMPLETE</span><h2>'+(bhcIsMe(s.winner)?'You won the match!':'Match finished')+'</h2><p class="bhc-muted">Final score: '+Number(s.score||0)+' / Target: '+(s.target||'—')+'</p><button class="bhc-btn primary" id="bhcAgain">Play again</button></div>';
  }
  const scoreTop=phase==='ball'?'<div class="bhc-status">Innings '+(s.innings||1)+' · '+(bhcIsMe(s.batting)?'You are batting':'You are bowling')+(s.target?' · Target '+s.target:'')+'</div>':'';
- bhcMain().innerHTML='<div class="bhc-head" style="border:1px solid #29495b;border-radius:14px;margin-bottom:12px"><div><b>'+bhcEsc(myName)+'</b><small class="bhc-muted"> vs '+bhcEsc(opName)+'</small></div><span class="bhc-pill">'+(phase==='finished'?'FINISHED':phase.replace('_',' ').toUpperCase())+'</span></div>'+scoreTop+'<div class="bhc-card">'+panel+'</div><div class="bhc-actions"><button class="bhc-btn" id="bhcBack">Back to Play</button><button class="bhc-btn" id="bhcRefresh">Sync</button></div>';
+ bhcMain().innerHTML='<div class="bhc-head" style="border:1px solid #29495b;border-radius:14px;margin-bottom:12px"><div><b>'+bhcEsc(myName)+'</b><small class="bhc-muted"> vs '+bhcEsc(opName)+'</small></div><span class="bhc-pill">'+(phase==='finished'?'FINISHED':phase.replace('_',' ').toUpperCase())+'</span></div>'+scoreTop+'<div class="bhc-card">'+panel+'</div><div class="bhc-actions"><button class="bhc-btn" id="bhcBack">Back to Play</button><button class="bhc-btn" id="bhcRefresh">Sync</button></div>'+(s.teamMatch?'<div id="bhcMatchChat"></div>':'');
  bhcMain().querySelectorAll('[data-bhc-toss]').forEach(b=>b.onclick=()=>bhcAction('metbhc_choose_toss',{p_match_id:m.id,p_choice:b.dataset.bhcToss}));
  bhcMain().querySelectorAll('[data-bhc-decision]').forEach(b=>b.onclick=()=>bhcAction('metbhc_choose_innings',{p_match_id:m.id,p_decision:b.dataset.bhcDecision}));
  bhcMain().querySelectorAll('[data-bhc-pick]').forEach(b=>b.onclick=()=>bhcAction('metbhc_submit_pick',{p_match_id:m.id,p_pick:Number(b.dataset.bhcPick)}));
  $('bhcBack').onclick=()=>{if(metBhcChannel)sb.removeChannel(metBhcChannel);metBhcChannel=null;metBhcMatch=null;bhcRenderPlay();};
  $('bhcRefresh').onclick=bhcRefresh;
  if($('bhcAgain'))$('bhcAgain').onclick=()=>{metBhcMatch=null;bhcRenderPlay();};
+ if(s.teamMatch&&s.fixtureId)bhcInitTeamChat(s.fixtureId,s.teamA,s.teamB,'bhcMatchChat');
 }
 async function bhcAction(fn,args){
  if(metBhcBusy)return;metBhcBusy=true;
@@ -2085,8 +2086,8 @@ async function bhcMplOpenLeague(id){
 }
 
 let metBhcChatChannel=null;
-async function bhcInitTeamChat(fixtureId,teamA,teamB){
- const host=$('mplChat');if(!host)return;
+async function bhcInitTeamChat(fixtureId,teamA,teamB,hostId='mplChat'){
+ const host=$(hostId);if(!host)return;
  if(metBhcChatChannel)sb.removeChannel(metBhcChatChannel);
  const mem=await sb.from('metbhc_team_members').select('team_id').in('team_id',[teamA,teamB]).eq('user_id',profile.id).maybeSingle();
  if(mem.error||!mem.data){host.innerHTML='<div class="bhc-chat"><b>Team chat</b><p class="bhc-muted">Only registered players can access team chat.</p></div>';return;}
