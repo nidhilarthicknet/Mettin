@@ -1938,9 +1938,30 @@ function launchMetBHCApp(){
  metBhcTab='play';metBhcMatch=null;
  const a=APPS.find(x=>x.id==='met_bhc');
  renderLocalApp(a,body);
+ const host=$('launchContent');
+ host.querySelectorAll('[data-bhc-tab]').forEach(button=>{button.onclick=()=>window.metBhcSetTab(button.dataset.bhcTab);});
+ const quickMatch=$('bhcMatchmake'),refreshInvites=$('bhcRefreshInvites'),challenge=$('bhcChallenge');
+ if(quickMatch)quickMatch.onclick=()=>bhcJoin(null);
+ if(refreshInvites)refreshInvites.onclick=()=>bhcRenderInvitesBackground().catch(bhcShowError);
+ if(challenge)challenge.onclick=()=>window.bhcChallengeFromInput();
  bhcRenderInvitesBackground().catch(bhcShowError);
-
 }
+window.openMetBHCFromStore=function(){
+ try{
+  if(!profile)throw new Error('Sign in to your Metxon account before opening MetBHC.');
+  launchMetBHCApp();
+ }catch(error){
+  console.error('MetBHC launch failed:',error);
+  const panel=$('appLaunchPanel'),content=$('launchContent');
+  if(panel&&content){
+   $('launchTitle').textContent='MetBHC';
+   $('launchDescription').textContent='Metxon Board for HandCricket';
+   content.innerHTML='<div class="bhc"><div class="bhc-head"><strong class="bhc-brand">METBHC</strong><button type="button" class="bhc-btn" id="bhcLaunchRetry">Retry opening</button></div><div class="bhc-main"><div class="bhc-card"><h2>MetBHC could not start</h2><p class="bhc-muted">'+bhcEsc(error?.message||String(error)||'Unknown launch error')+'</p><p class="bhc-muted">Your installed app and match data have not been changed.</p></div></div></div>';
+   showPage('nebula');panel.classList.remove('hidden');setAppLaunchFullscreen(true);
+   $('bhcLaunchRetry')?.addEventListener('click',()=>window.openMetBHCFromStore());
+  }else toast(error?.message||'MetBHC could not open.','error');
+ }
+};
 window.metBhcSetTab=function(tab){
  const selected=['play','mpl','profile'].includes(tab)?tab:'play';
  metBhcTab=selected;
@@ -2226,7 +2247,7 @@ function launchApp(id){
   if(id==='football')return launchFootballApp();
   if(id==='chess_boys')return launchChessBoysApp();
   if(id==='metconnect')return launchMetConnectApp();
-  if(id==='met_bhc')return launchMetBHCApp();
+  if(id==='met_bhc')return window.openMetBHCFromStore();
   if(id==='cule_in'){
     const body='<div style="width:100%;height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;padding:clamp(18px,5vw,50px);box-sizing:border-box"><div style="width:min(900px,100%);margin:auto"><div style="text-align:center;margin-bottom:22px">'+mettinAssistantLogoSvg('cule_in',false)+'<p class="muted" style="margin-top:6px">Search engine · direct answers and up-to-date information</p></div><form id="culeInForm" style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:999px;padding:8px 10px 8px 20px;background:var(--panel);box-shadow:0 8px 28px #0002"><input id="culeSearchBox" type="search" maxlength="1200" placeholder="Ask anything — Metxon, maths, English, science…" style="flex:1;min-width:0;border:0;background:transparent;box-shadow:none;font-size:1rem;outline:none"><button class="btn primary" id="culeSearchButton" type="submit" style="border-radius:999px;padding:11px 22px">Ask</button></form><div id="culeInStatus" class="status" aria-live="polite" style="margin:12px 8px"></div><div id="culeInAnswer" aria-live="polite" style="white-space:pre-wrap;line-height:1.65;font-size:1.04rem;min-height:0;margin:24px 4px"></div></div></div>';
     renderLocalApp(a,body);
@@ -2249,6 +2270,7 @@ function launchApp(id){
   }
   return renderLocalApp(a,'<div class="card"><h2>'+esc(a.name)+'</h2><p>'+esc(a.desc)+'</p><p>This app is running inside Mettin; no redirect to the Metxon corporate homepage is used.</p></div>');
 }
+window.launchApp=launchApp;
 
 window.__culeInHistory = Array.isArray(window.__culeInHistory) ? window.__culeInHistory : [];
 async function searchCuleIn(){
