@@ -562,7 +562,7 @@ $('createAppForm').addEventListener('submit',async e=>{
  /* MetBHC launch and controls are registered before the Store is interactive.
    Function declarations below are hoisted; state is initialized here to keep the
    controls usable even if a later optional startup section throws. */
- let metBhcMatch=null,metBhcChannel=null,metBhcTab='play',metBhcBusy=false;
+ let metBhcMatch=null,metBhcChannel=null,metBhcTab='play',metBhcBusy=false,metBhcBotMatch=null;
  window.openMetBHCFromStore=function(){
   try{
    if(!profile)throw new Error('Sign in to your Metxon account before opening MetBHC.');
@@ -2050,7 +2050,7 @@ window.openMetBHCFromStore=function(){
  }
 };
 window.metBhcSetTab=function(tab){
- const selected=['play','mpl','profile'].includes(tab)?tab:'play';
+ const selected=['play','mpl','profile','bots'].includes(tab)?tab:'play';
  metBhcTab=selected;
  document.querySelectorAll('#launchContent [data-bhc-tab]').forEach(b=>b.classList.toggle('active',b.getAttribute('data-bhc-tab')===selected));
  try{
@@ -2103,7 +2103,6 @@ async function bhcRenderInvitesBackground(){
 }
 
 /* Local MetBHC bot matches. Rating is difficulty only, never a wager or currency. */
-let metBhcBotMatch=null;
 function bhcBotChooseNumber(game){
  const h=game.playerHistory,level=game.rating,turn=h.length;
  const random=()=>Math.floor(Math.random()*11);
