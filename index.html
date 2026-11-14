@@ -1936,13 +1936,29 @@ function launchMetBHCApp(){
  '.bhc-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:#091d2a;border-bottom:1px solid #29495b}.bhc-brand{font-weight:950;letter-spacing:3px;font-size:1.1rem;color:#76e5ce}.bhc-nav{display:flex;gap:8px;padding:10px 14px;background:#0b202d;border-bottom:1px solid #29495b}.bhc-tab{border:1px solid #345469;background:#102a3b;color:#cce0ee;border-radius:999px;padding:9px 17px;font-weight:800}.bhc-tab.active{background:linear-gradient(110deg,#087e69,#176c91);color:white;border-color:#5adcc6}.bhc-main{padding:clamp(14px,3vw,25px);flex:1}.bhc-card{background:#0d2230;border:1px solid #29495b;border-radius:16px;padding:16px;margin:10px 0}.bhc-muted{color:#9db7c9}.bhc-actions{display:flex;flex-wrap:wrap;gap:10px}.bhc-btn{border:1px solid #3a6475;background:#123348;color:#f2fbff;border-radius:12px;padding:12px 16px;font-weight:850}.bhc-btn.primary{background:linear-gradient(110deg,#087e69,#176c91);border-color:#5adcc6}.bhc-btn:disabled{opacity:.45}.bhc-input{width:100%;max-width:440px;background:#081a26;color:white;border:1px solid #35566a;border-radius:11px;padding:12px}.bhc-scoregrid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px}.bhc-stat{background:#0e2938;border:1px solid #2b5062;border-radius:15px;padding:14px;min-width:0}.bhc-stat strong{display:block;font-size:clamp(1.7rem,5vw,2.5rem);line-height:1.15;margin-top:5px}.bhc-numbers{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:16px}.bhc-num{min-height:52px;border-radius:13px;border:1px solid #3a6173;background:#102b3a;color:white;font-size:1.2rem;font-weight:950}.bhc-num.special{background:linear-gradient(145deg,#6b4b14,#9b6c1d);border-color:#e4b95d;color:#fff3cf}.bhc-num:disabled{opacity:.4}.bhc-pill{display:inline-flex;padding:5px 9px;border-radius:99px;background:#163b45;color:#9df0d9;font-size:.75rem;font-weight:850}.bhc-status{padding:12px;border-radius:12px;background:#102b39;color:#b9d4e4;margin:10px 0}.bhc-log{border-bottom:1px solid #254557;padding:10px 0}.bhc-invite{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.bhc-hide{display:none!important}.bhc-graph{display:flex;flex-direction:column;align-items:stretch;gap:0;margin-top:18px}.bhc-fixture{border:1px solid #31596c;background:linear-gradient(145deg,#102b3a,#0a1d2a);border-radius:15px;padding:15px;max-width:760px;width:100%;margin:auto}.bhc-fixture-top{display:flex;justify-content:space-between;gap:8px;align-items:center}.bhc-fixture-teams{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center;padding:18px 4px;font-size:1.05rem}.bhc-fixture-teams span{color:#8db7c9;font-weight:900}.bhc-connector{height:25px;width:2px;background:linear-gradient(#56d9c1,#3c7694);margin:auto}.bhc-chat{border:1px solid #31596c;border-radius:14px;background:#091c29;padding:13px;margin-top:14px}.bhc-chat-log{max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:7px}.bhc-chat-msg{background:#143244;border-radius:10px;padding:8px 10px;overflow-wrap:anywhere}.bhc-chat-msg small{display:block;color:#9db7c9;font-size:.75rem}.bhc-chat-compose{display:flex;gap:8px;margin-top:10px}.bhc-chat-compose input{flex:1;min-width:0}@media(max-width:600px){.bhc-fixture-teams{font-size:.92rem}}@media(max-width:600px){.bhc-scoregrid{grid-template-columns:1fr 1fr}.bhc-stat:first-child{grid-column:1/-1}.bhc-numbers{grid-template-columns:repeat(4,minmax(0,1fr))}.bhc-head{padding:12px}.bhc-main{padding:12px}}'+
  '</style><div class="bhc"><div class="bhc-head"><div><div class="bhc-brand">METBHC</div><small class="bhc-muted">METXON BOARD FOR HANDCRICKET</small></div><span class="bhc-pill">0–10 · ONE WICKET</span></div><div class="bhc-nav"><button class="bhc-tab active" data-bhc-tab="play">Play</button><button class="bhc-tab" data-bhc-tab="mpl">MPL</button><button class="bhc-tab" data-bhc-tab="profile">Profile</button></div><div class="bhc-main" id="bhcMain"><div class="bhc-status">Loading MetBHC…</div></div></div>';
  const a=APPS.find(x=>x.id==='met_bhc');renderLocalApp(a,body);
- const launch=$('launchContent');
- launch.onclick=(event)=>{
-  const tab=event.target.closest('[data-bhc-tab]');
-  if(tab){event.preventDefault();metBhcTab=tab.dataset.bhcTab;bhcRenderTab().catch(e=>bhcShowError(e));return;}
- };
+ const shell=$('launchContent')?.querySelector('.bhc');
+ const nav=shell?.querySelector('.bhc-nav');
+ if(nav){
+  nav.addEventListener('click',event=>{
+   const tab=event.target.closest('[data-bhc-tab]');
+   if(!tab)return;
+   event.preventDefault();
+   metBhcTab=tab.getAttribute('data-bhc-tab')||'play';
+   nav.querySelectorAll('[data-bhc-tab]').forEach(x=>x.classList.toggle('active',x===tab));
+   bhcRenderTab().catch(bhcShowError);
+  });
+ }
  metBhcTab='play';metBhcMatch=null;
- bhcRenderTab().catch(e=>bhcShowError(e));
+ if(!profile){
+  bhcMain().innerHTML='<div class="bhc-card"><h2>Sign in required</h2><p class="bhc-muted">Sign in to your Metxon account before playing MetBHC.</p></div>';
+ }else{
+  bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">READY TO PLAY?</span><h2 style="margin:12px 0 6px">Choose your opponent</h2><p class="bhc-muted">Matchmaking finds another player who is waiting. Or challenge someone using their Metxon username.</p><div class="bhc-actions" style="margin-top:18px"><button class="bhc-btn primary" id="bhcMatchmake">Quick Match · Matchmaking</button><button class="bhc-btn" id="bhcRefreshInvites">Refresh challenges</button></div><div style="margin:18px 0 8px;font-weight:850">Challenge a username</div><div class="bhc-actions"><input class="bhc-input" id="bhcOpponent" placeholder="Enter Metxon username" maxlength="40"><button class="bhc-btn" id="bhcChallenge">Send challenge</button></div><div id="bhcStatus" class="bhc-status" aria-live="polite">Ready. Loading challenges in background…</div></div>';
+  $('bhcMatchmake').onclick=()=>bhcJoin(null);
+  $('bhcRefreshInvites').onclick=()=>bhcRenderPlay().catch(bhcShowError);
+  $('bhcChallenge').onclick=()=>{const u=$('bhcOpponent').value.trim();if(u)bhcJoin(u);else $('bhcStatus').textContent='Enter a Metxon username first.';};
+  bhcRenderInvitesBackground();
+ }
+
 }
 function bhcEsc(v){return esc(v);}
 function bhcIsMe(id){return !!profile?.id&&String(id)===String(profile.id);}
@@ -1965,6 +1981,19 @@ async function bhcRenderTab(){
   if(metBhcTab==='profile'){await bhcRenderProfile();return;}
   bhcRenderMPL();
  }catch(error){bhcShowError(error);}
+}
+async function bhcRenderInvitesBackground(){
+ const status=$('bhcStatus');if(!profile?.id||!status)return;
+ try{
+  const result=await sb.from('metbhc_matches').select('id,player1_id,created_at').eq('player2_id',profile.id).eq('status','invited').order('created_at',{ascending:false}).limit(5);
+  if(result.error)throw result.error;
+  const rows=result.data||[];
+  if(rows.length){
+   bhcMain().insertAdjacentHTML('beforeend','<div class="bhc-card"><h3>Incoming challenges</h3>'+rows.map(m=>'<div class="bhc-invite bhc-log"><span>Hand-cricket challenge received</span><button class="bhc-btn primary" data-bhc-accept="'+m.id+'">Accept</button></div>').join('')+'</div>');
+   bhcMain().querySelectorAll('[data-bhc-accept]').forEach(b=>b.onclick=()=>bhcAccept(b.dataset.bhcAccept));
+  }
+  const current=$('bhcStatus');if(current)current.textContent='Choose a mode to begin.';
+ }catch(error){const current=$('bhcStatus');if(current)current.textContent='Ready. Challenges could not refresh: '+(error.message||error);}
 }
 async function bhcRenderPlay(){
  if(!profile){bhcMain().innerHTML='<div class="bhc-card"><h2>Sign in required</h2><p class="bhc-muted">Sign in to your Metxon account before playing MetBHC.</p></div>';return;}
