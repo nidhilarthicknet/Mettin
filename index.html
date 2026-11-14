@@ -2237,8 +2237,9 @@ async function bhcMplList(mode){
  const r=await sb.from('metbhc_leagues').select('id,creator_id,team_count,format_matches,status,created_at').order('created_at',{ascending:false}).limit(40);
  if(r.error){host.innerHTML='<div class="bhc-status">'+bhcEsc(r.error.message)+'</div>';return;}
  const leagues=r.data||[];
- host.innerHTML='<div class="bhc-card"><h3>'+(mode==='results'?'Tournaments & results':'Upcoming fixtures')+'</h3>'+(leagues.length?leagues.map(l=>'<div class="bhc-log bhc-invite"><span><b>'+l.team_count+' teams</b> · '+(l.format_matches||'final format')+' · '+l.status+'</span><button class="bhc-btn" data-mpl-open="'+l.id+'">Open graph</button></div>').join(''):'No MPL tournaments found. Create one to begin.')+'</div>';
+ host.innerHTML='<div class="bhc-card"><h3>'+(mode==='results'?'Tournaments & results':'Upcoming fixtures')+'</h3>'+(leagues.length?leagues.map(l=>'<div class="bhc-log bhc-invite"><span><b>'+l.team_count+' teams</b> · '+(l.format_matches||'final format')+' · '+l.status+'</span><button class="bhc-btn" data-mpl-open="'+l.id+'">Open graph</button></div>').join(''):'<div class="bhc-status">You do not have a tournament yet. Create an MPL tournament to generate your teams, fixtures and points table.</div><button class="bhc-btn primary" id="mplCreateFromEmpty" type="button">＋ Create a tournament</button>')+'</div>';
  host.querySelectorAll('[data-mpl-open]').forEach(b=>b.onclick=()=>bhcMplOpenLeague(b.dataset.mplOpen));
+ const createEmpty=$('mplCreateFromEmpty');if(createEmpty)createEmpty.onclick=bhcMplCreateForm;
 }
 async function bhcMplOpenLeague(id){
  const host=$('mplSub');host.innerHTML='<div class="bhc-card"><div class="bhc-status">Loading tournament graph…</div></div>';
