@@ -536,7 +536,30 @@ $('createAppForm').addEventListener('submit',async e=>{
   publishButton.disabled=false;
  }
 });
-function bindNebulaOfficialOpenDelegation(){
+// Register MetBHC's public launch entry point before the Store can bind its Open button.
+ // The full MetBHC implementation is a function declaration later in this same script;
+ // declarations are hoisted, so this entry point remains available if later startup code exits early.
+ window.openMetBHCFromStore=window.openMetBHCFromStore||function(){
+  try{
+   if(!profile)throw new Error('Sign in to your Metxon account before opening MetBHC.');
+   if(typeof launchMetBHCApp!=='function')throw new Error('MetBHC module did not initialize. Reload Mettin and try again.');
+   launchMetBHCApp();
+  }catch(error){
+   console.error('MetBHC launch failed:',error);
+   const panel=document.getElementById('appLaunchPanel');
+   const content=document.getElementById('launchContent');
+   if(panel&&content){
+    const title=document.getElementById('launchTitle');
+    const description=document.getElementById('launchDescription');
+    if(title)title.textContent='MetBHC';
+    if(description)description.textContent='Metxon Board for HandCricket';
+    content.textContent='MetBHC could not start: '+(error&&error.message?error.message:String(error));
+    panel.classList.remove('hidden');
+    if(typeof setAppLaunchFullscreen==='function')setAppLaunchFullscreen(true);
+   }else if(typeof toast==='function')toast(error&&error.message?error.message:'MetBHC could not open.','error');
+  }
+ };
+ function bindNebulaOfficialOpenDelegation(){
  const grid=$('storeGrid');
  if(!grid||grid.dataset.openDelegationReady==='true')return;
  grid.dataset.openDelegationReady='true';
