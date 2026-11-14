@@ -540,7 +540,7 @@ async function loadStore(){
  if(!profile)return;
  const q=await sb.from('metxon_app_installations').select('app_id').eq('user_id',profile.id);
  installed=new Set(q.error?[]:(q.data||[]).map(x=>x.app_id));
- const officialCards=APPS.map(a=>'<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: Mettin Corporation Pvt. Ltd.</div><div class="split"><div><span class="pill">'+(a.id==='met_develop'?'Development':a.id==='metpay'?'Payments':'Nebula app')+'</span><h3 style="margin-top:12px">'+esc(a.name)+'</h3><p>'+esc(a.desc)+'</p></div><div style="width:82px;min-width:82px;color:var(--green)">'+(['cule_in','cule_ai','nebula_ai'].includes(a.id)?mettinAssistantLogoSvg(a.id,false):esc(a.icon))+'</div></div><div class="price">'+(a.price===0?'Free':esc(moneyJp(a.price/100))+' <small>one-time</small>')+'</div>'+(installed.has(a.id)?'<span class="pill green">Installed</span> <button class="btn primary" onclick="launchApp(\''+a.id+'\')">Open app</button>':'<button class="btn primary" onclick="installApp(\''+a.id+'\')">'+(a.price===0?'Add app':'Install with MetPay')+'</button>')+'</div>').join('');
+ const officialCards=APPS.map(a=>'<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: Mettin Corporation Pvt. Ltd.</div><div class="split"><div><span class="pill">'+(a.id==='met_develop'?'Development':a.id==='metpay'?'Payments':'Nebula app')+'</span><h3 style="margin-top:12px">'+esc(a.name)+'</h3><p>'+esc(a.desc)+'</p></div><div style="width:82px;min-width:82px;color:var(--green)">'+(['cule_in','cule_ai','nebula_ai'].includes(a.id)?mettinAssistantLogoSvg(a.id,false):esc(a.icon))+'</div></div><div class="price">'+(a.price===0?'Free':esc(moneyJp(a.price/100))+' <small>one-time</small>')+'</div>'+(installed.has(a.id)?'<span class="pill green">Installed</span> <button class="btn primary" type="button" data-open-official-app="'+a.id+'">Open app</button>':'<button class="btn primary" onclick="installApp(\''+a.id+'\')">'+(a.price===0?'Add app':'Install with MetPay')+'</button>')+'</div>').join('');
  const c=await sb.from('mettin_created_apps').select('id,creator_id,title,description,category,price_jp,source_language,needs_backend').eq('status','published').order('created_at',{ascending:false}).limit(60);
  if(c.error){$('storeGrid').innerHTML=officialCards+'<div class="empty">Community apps could not be loaded: '+esc(c.error.message)+'</div>';$('customStoreGrid').innerHTML='';return;}
  const creatorIds=[...new Set((c.data||[]).map(a=>a.creator_id).filter(Boolean))];
@@ -553,6 +553,28 @@ async function loadStore(){
   return '<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: '+esc(creator)+'</div><span class="pill">'+esc(a.category)+'</span><h3 style="margin-top:12px">'+esc(a.title)+'</h3>'+(a.needs_backend?'<span class="pill">Supabase backend</span>':'<span class="pill">Browser-only</span>')+'<p>'+esc(a.description)+'</p><p class="small">'+esc(String(a.source_language||'html').toUpperCase())+' app source</p><div class="price">'+esc(moneyJp(a.price_jp))+'</div>'+action+'</div>';
  }).join('');
  $('storeGrid').innerHTML=officialCards+(communityCards||'<div class="empty">No community apps published yet. Create one in Develop.</div>');
+ // Directly bind Open buttons after Nebula Store cards enter the DOM.
+ $('storeGrid').querySelectorAll('[data-open-official-app]').forEach(button=>{
+  button.addEventListener('click',event=>{
+   event.preventDefault();
+   const appId=button.getAttribute('data-open-official-app');
+   try{
+    button.disabled=true;
+    button.textContent='Opening…';
+    const result=appId==='met_bhc'?window.openMetBHCFromStore():window.launchApp(appId);
+    if(result&&typeof result.then==='function')result.catch(error=>{
+     console.error('Nebula Store app launch failed:',error);
+     toast(error?.message||'The app could not open.','error');
+    });
+   }catch(error){
+    console.error('Nebula Store app launch failed:',error);
+    toast(error?.message||'The app could not open.','error');
+   }finally{
+    button.disabled=false;
+    button.textContent='Open app';
+   }
+  });
+ });
  $('customStoreGrid').innerHTML='';
 }
 async function installApp(id){const a=APPS.find(x=>x.id===id);if(!a)return;if(!confirm(a.price===0?'Add '+a.name+' to your apps?':'Install '+a.name+' for '+moneyJp(a.price/100)+'? Charged from the shared InstaPay balance.'))return;let p='';if(a.price>0){p=prompt('Enter your MetPay transaction password to confirm.');if(p===null)return;}try{const r=id==='met_bhc'?await rpc('metbhc_install_app',{p_metpay_password:p}):await rpc('mettin_install_nebula_app',{p_app_id:id,p_metpay_password:p});if(!r||!r.installed)throw new Error('Installation did not complete.');await getProfile();await refreshOverview();await loadStore();await loadMetPay();if(id==='metconnect'&&typeof initMetConnectBackground==='function')await initMetConnectBackground();toast(r.charged?'Installed '+a.name+' for '+moneyJp(r.price_jp)+'.':Number(r.price_jp)===0?'Added '+a.name+' to your apps.':'App already installed.','success');}catch(e){toast(e.message||'Installation failed.','error');}}
