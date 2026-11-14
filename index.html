@@ -2134,7 +2134,7 @@ function bhcRenderBots(){
  bhcMain().querySelectorAll('[data-bhc-bot]').forEach(b=>b.onclick=()=>bhcStartBot(Number(b.dataset.bhcBot)));
 }
 function bhcStartBot(rating){
- metBhcBotMatch={rating,phase:'choice',innings:1,score:0,target:null,playerHistory:[],botHistory:[],batting:'player',balls:0,result:null};
+ metBhcBotMatch={rating,phase:'choice',innings:1,score:0,playerScore:0,botScore:0,target:null,playerHistory:[],botHistory:[],batting:'player',balls:0,result:null};
  bhcRenderBotMatch();
 }
 function bhcRenderBotMatch(){
