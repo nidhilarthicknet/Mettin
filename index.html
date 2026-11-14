@@ -1968,7 +1968,7 @@ window.metBhcSetTab=function(tab){
  document.querySelectorAll('#launchContent [data-bhc-tab]').forEach(b=>b.classList.toggle('active',b.getAttribute('data-bhc-tab')===selected));
  try{
   if(selected==='play'){bhcRenderPlay().catch(bhcShowError);return;}
-  if(selected==='mpl'){bhcRenderMPL().catch(bhcShowError);return;}
+  if(selected==='mpl'){bhcRenderMPL();return;}
   bhcRenderProfile().catch(bhcShowError);
  }catch(error){bhcShowError(error);}
 };
