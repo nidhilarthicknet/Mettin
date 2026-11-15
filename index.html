@@ -562,7 +562,7 @@ $('createAppForm').addEventListener('submit',async e=>{
  /* MetBHC launch and controls are registered before the Store is interactive.
    Function declarations below are hoisted; state is initialized here to keep the
    controls usable even if a later optional startup section throws. */
- let metBhcMatch=null,metBhcChannel=null,metBhcTab='play',metBhcBusy=false,metBhcBotMatch=null;
+ let metBhcMatch=null,metBhcChannel=null,metBhcTab='play',metBhcBusy=false,metBhcBotMatch=null,metBhcBotTimer=null,metBhcBotSeconds=20;
  window.openMetBHCFromStore=function(){
   try{
    if(!profile)throw new Error('Sign in to your Metxon account before opening MetBHC.');
@@ -2135,61 +2135,85 @@ function bhcRenderBots(){
  bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">SOLO · AI OPPONENTS</span><h2>Play Bots</h2><p class="bhc-muted">Choose a Stockfish-style difficulty rating. Higher-rated bots analyse more of your number history and adapt to repeated patterns.</p><div class="bhc-scoregrid">'+[[100,'Beginner · fixed pattern'],[500,'Easy · simple pattern learning'],[1000,'Intermediate · recent-pattern analysis'],[1500,'Advanced · sequence prediction'],[2000,'Expert · adaptive opponent modelling']].map(x=>'<button class="bhc-stat" type="button" data-bhc-bot="'+x[0]+'" style="text-align:left;color:inherit"><strong style="font-size:1.5rem">'+x[0]+' BHC</strong><small>'+x[1]+'</small><span class="bhc-pill" style="margin-top:10px">Play bot</span></button>').join('')+'</div><p class="bhc-muted">BHC is a difficulty rating, not money or a match stake. Bot matches run locally and do not require matchmaking.</p></div>';
  bhcMain().querySelectorAll('[data-bhc-bot]').forEach(b=>b.onclick=()=>bhcStartBot(Number(b.dataset.bhcBot)));
 }
+function bhcStopBotTimer(){
+ if(metBhcBotTimer){clearInterval(metBhcBotTimer);metBhcBotTimer=null;}
+}
+function bhcStartBotTimer(){
+ bhcStopBotTimer();
+ metBhcBotSeconds=20;
+ const timer=$('bhcBotTimer');
+ if(timer)timer.textContent='20s';
+ metBhcBotTimer=setInterval(()=>{
+  if(!metBhcBotMatch||metBhcBotMatch.phase!=='pick'){bhcStopBotTimer();return;}
+  metBhcBotSeconds=Math.max(0,metBhcBotSeconds-1);
+  const el=$('bhcBotTimer');if(el)el.textContent=metBhcBotSeconds+'s';
+  if(metBhcBotSeconds<=0){
+   bhcStopBotTimer();
+   const autoPick=Math.floor(Math.random()*11);
+   bhcBotBall(autoPick,true);
+  }
+ },1000);
+}
 function bhcStartBot(rating){
- metBhcBotMatch={rating,phase:'choice',innings:1,score:0,playerScore:0,botScore:0,target:null,playerHistory:[],botHistory:[],batting:'player',balls:0,result:null};
+ bhcStopBotTimer();
+ metBhcBotMatch={rating,phase:'choice',innings:1,score:0,playerScore:0,botScore:0,target:null,playerHistory:[],botHistory:[],batting:'player',balls:0,result:null,lastBall:null,playerOut:false,botOut:false};
  bhcRenderBotMatch();
 }
 function bhcRenderBotMatch(){
  const g=metBhcBotMatch;if(!g)return;
  const names={100:'Pattern Bot',500:'Learning Bot',1000:'Analyst Bot',1500:'Predictor Bot',2000:'Adaptive Expert'};
  if(g.phase==='choice'){
+  bhcStopBotTimer();
   bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">'+g.rating+' BHC · '+names[g.rating]+'</span><h2>Choose your innings</h2><p class="bhc-muted">Choose whether you want to bat or bowl first. One wicket per innings.</p><div class="bhc-actions"><button class="bhc-btn primary" id="bhcBotBat">Bat first</button><button class="bhc-btn primary" id="bhcBotBowl">Bowl first</button><button class="bhc-btn" id="bhcBotBack">Back</button></div></div>';
   $('bhcBotBat').onclick=()=>{g.batting='player';g.phase='pick';bhcRenderBotMatch();};
   $('bhcBotBowl').onclick=()=>{g.batting='bot';g.phase='pick';bhcRenderBotMatch();};
   $('bhcBotBack').onclick=bhcRenderBots;return;
  }
  if(g.phase==='finished'){
+  bhcStopBotTimer();
   bhcMain().innerHTML='<div class="bhc-card"><span class="bhc-pill">BOT MATCH COMPLETE</span><h2>'+g.result+'</h2><p class="bhc-muted">Your score: '+g.playerScore+' · Bot score: '+g.botScore+' · Difficulty: '+g.rating+' BHC</p><div class="bhc-actions"><button class="bhc-btn primary" id="bhcBotAgain">Play this bot again</button><button class="bhc-btn" id="bhcBotList">Choose another bot</button></div></div>';
   $('bhcBotAgain').onclick=()=>bhcStartBot(g.rating);$('bhcBotList').onclick=bhcRenderBots;return;
  }
- const batting=g.batting==='player',current=batting?g.score:g.botScore||0,opp=batting?(g.botScore??0):g.score;
- bhcMain().innerHTML='<div class="bhc-card"><div class="bhc-invite"><span class="bhc-pill">'+g.rating+' BHC BOT</span><span class="bhc-pill">INNINGS '+g.innings+'</span></div><div class="bhc-scoregrid"><div class="bhc-stat"><span class="bhc-muted">YOUR SCORE</span><strong>'+g.playerScore+'</strong></div><div class="bhc-stat"><span class="bhc-muted">BOT SCORE</span><strong>'+g.botScore+'</strong></div><div class="bhc-stat"><span class="bhc-muted">TARGET</span><strong>'+(g.target??'—')+'</strong></div></div><h2>'+(batting?'You are batting':'You are bowling')+'</h2><p class="bhc-muted">'+(batting?'Choose a number. If it matches the bot, you are out.':'Choose a number to try to match the bot batter. If the bot chooses 0, your number scores for it.')+' 0 = STROCK.</p><div class="bhc-numbers">'+bhcNumberButtons(false)+'</div><div class="bhc-status" id="bhcBotStatus">Choose your number for this ball.</div><button class="bhc-btn" id="bhcBotExit">Exit bot match</button></div>';
- bhcMain().querySelectorAll('[data-bhc-pick]').forEach(b=>b.onclick=()=>bhcBotBall(Number(b.dataset.bhcPick)));
- $('bhcBotExit').onclick=()=>{metBhcBotMatch=null;bhcRenderBots();};
+ const batting=g.batting==='player';
+ const chaseText=g.innings===2?' · TARGET '+g.target+' · NEED '+Math.max(0,g.target-(batting?g.playerScore:g.botScore)):'';
+ let reveal='';
+ if(g.lastBall){
+  const b=g.lastBall;
+  reveal='<div class="bhc-card" style="margin-top:14px"><div class="bhc-muted">LAST BALL · BOTH NUMBERS REVEALED</div><div class="bhc-scoregrid"><div class="bhc-stat"><span class="bhc-muted">YOUR NUMBER</span><strong>'+b.playerPick+'</strong></div><div class="bhc-stat"><span class="bhc-muted">BOT NUMBER</span><strong>'+b.botPick+'</strong></div></div><div class="bhc-muted">'+(b.out?'WICKET':(b.runs+' RUNS'))+' · '+(b.playerPick===0||b.botPick===0?'<small>0 = STROCK</small>':'')+'</div></div>';
+ }
+ bhcMain().innerHTML='<div class="bhc-card"><div class="bhc-invite"><span class="bhc-pill">'+g.rating+' BHC BOT</span><span class="bhc-pill">INNINGS '+g.innings+chaseText+'</span></div><div class="bhc-scoregrid"><div class="bhc-stat"><span class="bhc-muted">YOUR SCORE</span><strong>'+g.playerScore+'</strong></div><div class="bhc-stat"><span class="bhc-muted">BOT SCORE</span><strong>'+g.botScore+'</strong></div><div class="bhc-stat"><span class="bhc-muted">TARGET</span><strong>'+(g.target??'—')+'</strong></div></div><div class="bhc-invite"><h2>'+(batting?'You are batting':'You are bowling')+'</h2><span class="bhc-pill">TIME LEFT <strong id="bhcBotTimer">20s</strong></span></div><p class="bhc-muted">'+(batting?'Choose a number to score runs. Matching the bot number means you are out.':'Choose a number to try to dismiss the bot batter.')+' <small>0 = STROCK</small></p>'+reveal+'<div class="bhc-numbers">'+bhcNumberButtons(false)+'</div><div class="bhc-status" id="bhcBotStatus">Choose your number. The bot number will be revealed at the same time.</div><button class="bhc-btn" id="bhcBotExit">Exit bot match</button></div>';
+ bhcMain().querySelectorAll('[data-bhc-pick]').forEach(b=>b.onclick=()=>bhcBotBall(Number(b.dataset.bhcPick),false));
+ $('bhcBotExit').onclick=()=>{bhcStopBotTimer();metBhcBotMatch=null;bhcRenderBots();};
+ bhcStartBotTimer();
 }
-function bhcBotBall(playerPick){
+function bhcBotBall(playerPick,autoPick){
  const g=metBhcBotMatch;if(!g||g.phase!=='pick')return;
- const botPick=bhcBotChooseNumber(g);g.playerHistory.push(playerPick);g.botHistory.push(botPick);g.balls++;
- const batterPick=g.batting==='player'?playerPick:botPick,bowlerPick=g.batting==='player'?botPick:playerPick;
+ bhcStopBotTimer();
+ const botPick=bhcBotChooseNumber(g);
+ g.playerHistory.push(playerPick);g.botHistory.push(botPick);g.balls++;
+ const batterPick=g.batting==='player'?playerPick:botPick;
+ const bowlerPick=g.batting==='player'?botPick:playerPick;
  const runs=batterPick===0?bowlerPick:batterPick;
  const out=batterPick===bowlerPick;
  const batter=g.batting;
- if(batter==='player'){if(out){g.playerOut=true;}else g.playerScore=(g.playerScore||0)+runs;}
- else {if(out){g.botOut=true;}else g.botScore=(g.botScore||0)+runs;}
- const msg='You chose '+playerPick+' · '+(g.rating===100?'Pattern Bot':g.rating+' BHC Bot')+' chose '+botPick+'. '+(out?'OUT!':(batter==='player'?'You scored ':'Bot scored ')+runs+' runs.');
+ if(batter==='player'){if(out)g.playerOut=true;else g.playerScore+=runs;}
+ else {if(out)g.botOut=true;else g.botScore+=runs;}
+ g.lastBall={playerPick,botPick,runs,out,autoPick:!!autoPick,strock:playerPick===0||botPick===0};
  if(g.innings===1&&out){
-  if(batter==='player'){g.target=(g.playerScore||0)+1;g.batting='bot';}
-  else {g.target=(g.botScore||0)+1;g.batting='player';}
+  g.target=(batter==='player'?g.playerScore:g.botScore)+1;
+  g.batting=batter==='player'?'bot':'player';
   g.innings=2;g.balls=0;g.playerOut=false;g.botOut=false;
  }else if(g.innings===2){
   const chaseScore=g.batting==='player'?g.playerScore:g.botScore;
-  const chaseTarget=g.target;
-  if(chaseScore>=chaseTarget||out){
+  if(chaseScore>=g.target||out){
    g.phase='finished';
    g.result=g.playerScore>g.botScore?'You win!':g.playerScore<g.botScore?'The bot wins.':'It is a tie!';
   }
  }
- if(g.innings===2&&!g.phase.includes('finished')){
-  const chaseScore=g.batting==='player'?g.playerScore:g.botScore;
-  if(chaseScore>=g.target){g.phase='finished';g.result=g.playerScore>g.botScore?'You win!':g.playerScore<g.botScore?'The bot wins.':'It is a tie!';}
- }
- if(g.phase!=='finished'&&g.innings===2&&out){
-  g.phase='finished';g.result=g.playerScore>g.botScore?'You win!':g.playerScore<g.botScore?'The bot wins.':'It is a tie!';
- }
- if(g.innings===2&&g.phase!=='finished'&&g.balls>0&&g.balls<2){/* continue chase */}
- if(g.phase==='finished'){g.result+=' ('+msg+')';}
+ if(g.phase!=='finished')g.phase='pick';
  bhcRenderBotMatch();
- const status=bhcMain().querySelector('#bhcBotStatus');if(status)status.textContent=msg;
+ const status=bhcMain().querySelector('#bhcBotStatus');
+ if(status)status.textContent=(autoPick?'Time expired — your number was selected automatically. ':'')+'You chose '+playerPick+' · Bot chose '+botPick+'. '+(out?'OUT!':(batter==='player'?'You scored ':'Bot scored ')+runs+' runs.')+(g.innings===2&&g.target?' Target: '+g.target+'.':'');
 }
 async function bhcRenderPlay(){
  if(!profile){bhcMain().innerHTML='<div class="bhc-card"><h2>Sign in required</h2><p class="bhc-muted">Sign in to your Metxon account before playing MetBHC.</p></div>';return;}
