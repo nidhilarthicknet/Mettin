@@ -2853,7 +2853,72 @@ function mbpxAfterShot(g,index){var own=g.pens[index],other=g.pens[1-index];if(g
 function mbpxBotTurn(g){if(!g||g.phase!=='playing'||g.turn!==1)return;var me=g.pens[1],you=g.pens[0],base=Math.atan2(you.y-me.y,you.x-me.x),spread=g.pt<=100?.95:g.pt<=500?.62:g.pt<=1000?.38:g.pt<=1500?.2:.1;mbpxShot(g,1,base+(Math.random()-.5)*spread,180+Math.random()*100);}
 function mbpxPenSettings(){var owned=mbpxPlayer?.owned_pens||['dhurandhar'];var cards=MBPX_SKINS.map(p=>'<div class="mbpx-card"><div class="mbpx-penview"><div class="mbpx-swatch" style="--c:'+p.color+';--a:'+p.accent+'"></div></div><div class="mbpx-hud"><b>'+p.name+'</b><span class="mbpx-pill">'+(owned.includes(p.id)?(mbpxPlayer.selected_pen===p.id?'SELECTED':'OWNED'):'π'+p.price)+'</span></div><p class="mbpx-muted mbpx-small">'+(p.price===0?'Free starter skin':'Virtual appearance skin')+'</p><button class="mbpx-btn '+(owned.includes(p.id)?'':'primary')+'" data-mbpx-pen="'+p.id+'">'+(owned.includes(p.id)?'Choose for next match':'Unlock · π'+p.price)+'</button></div>').join('');$('mbpxMain').innerHTML='<div class="mbpx-card"><div class="mbpx-hud"><h2>Pen settings</h2><button class="mbpx-btn" id="mbpxPenBack">Back</button></div><p class="mbpx-muted">Choose a virtual skin for the next match. Designs affect appearance only.</p><div class="mbpx-grid">'+cards+'</div><div class="mbpx-actions"><button class="mbpx-btn primary" id="mbpxStudioOpen">Customize virtual look</button></div><div class="mbpx-status" id="mbpxStatus"></div></div>';$('mbpxPenBack').onclick=mbpxProfile;$('mbpxStudioOpen').onclick=mbpxStudio;$('mbpxMain').querySelectorAll('[data-mbpx-pen]').forEach(b=>b.onclick=()=>mbpxPenAction(b.dataset.mbpxPen));}
 async function mbpxPenAction(id){var pen=mbpxSkin(id);try{if(mbpxPlayer?.owned_pens?.includes(id)){var c=await rpc('mbp_save_pen_settings',{p_selected_pen:id,p_custom_assembly:mbpxPlayer.custom_assembly||{}});if(!c.saved)throw new Error('Could not save this pen.');mbpxPlayer.selected_pen=id;mbpxPenSettings();return;}if(!confirm('Unlock the virtual '+pen.name+' skin for π'+pen.price+'?'))return;var pass=prompt('Enter your MetPay transaction password.');if(pass===null)return;var r=await rpc('mbp_buy_pen',{p_pen_id:id,p_metpay_password:pass});if(!r.owned)throw new Error('Unlock was not confirmed.');var q=await sb.from('mbp_player_data').select('*').eq('user_id',profile.id).single();if(q.error)throw q.error;mbpxPlayer=q.data;toast('Unlocked '+pen.name+' for π'+pen.price+'.','success');mbpxPenSettings();}catch(e){mbpxStatus(e.message||String(e),true);}}
-function mbpxStudio(){var design=Object.assign({},mbpxPlayer?.custom_assembly||{}),cat='body';$('mbpxMain').innerHTML='<div class="mbpx-card"><div class="mbpx-hud"><h2>Virtual skin studio</h2><button class="mbpx-btn" id="mbpxStudioBack">Back</button></div><p class="mbpx-muted">Choose decorative digital parts only: 3 body looks, 2 stationery patterns, 3 accessories and 2 trim looks.</p><div class="mbpx-actions">'+Object.keys(MBPX_LOOKS).map(k=>'<button class="mbpx-part" data-mbpx-cat="'+k+'">'+k.toUpperCase()+'</button>').join('')+'</div><div id="mbpxParts" class="mbpx-grid" style="margin-top:12px"></div><pre id="mbpxPreview" class="mbpx-status"></pre><button class="mbpx-btn primary" id="mbpxJoinDesign">Join · Save look</button><div id="mbpxStatus" class="mbpx-status"></div></div>';var summary=()=>{if($('mbpxPreview'))$('mbpxPreview').textContent=JSON.stringify(design,null,2);};var draw=()=>{$('mbpxParts').innerHTML=MBPX_LOOKS[cat].map(v=>'<button class="mbpx-part '+(design[cat]===v?'selected':'')+'" data-mbpx-part="'+v+'">'+v+'</button>').join('');$('mbpxParts').querySelectorAll('[data-mbpx-part]').forEach(b=>b.onclick=()=>{design[cat]=b.dataset.mbpxPart;draw();summary();});};$('mbpxStudioBack').onclick=mbpxPenSettings;$('mbpxMain').querySelectorAll('[data-mbpx-cat]').forEach(b=>b.onclick=()=>{cat=b.dataset.mbpxCat;draw();});$('mbpxJoinDesign').onclick=async()=>{try{if(!Object.keys(design).length)throw new Error('Choose at least one digital look option.');var r=await rpc('mbp_save_pen_settings',{p_selected_pen:'custom',p_custom_assembly:design});if(!r.saved)throw new Error('Could not save custom look.');var q=await sb.from('mbp_player_data').select('*').eq('user_id',profile.id).single();if(q.error)throw q.error;mbpxPlayer=q.data;toast('Custom virtual look saved for next match.','success');mbpxPenSettings();}catch(e){mbpxStatus(e.message||String(e),true);}};draw();summary();}
+function mbpxStudio(){
+ var limits={barrels:3,stationery:2,accessories:3,metal:2};
+ var catalog={
+  barrels:[{name:'Silver barrel',color:'#bdc9d3'},{name:'Teal barrel',color:'#05b9bd'},{name:'Neon barrel',color:'#25e94a'}],
+  stationery:[{name:'Classic ink tube',color:'#e9e5d8'},{name:'Sport ink tube',color:'#e5a83d'}],
+  accessories:[{name:'Orbit clip',color:'#60d8cf'},{name:'Comet ring',color:'#f0ca67'},{name:'Wing fin',color:'#9cc8e8'}],
+  metal:[{name:'Steel tip',color:'#9daab6'},{name:'Metal end cap',color:'#d0d8df'}]
+ };
+ var design=Object.assign({version:2,items:[]},mbpxPlayer?.custom_assembly||{});
+ if(!Array.isArray(design.items))design.items=[];
+ var active=null,drag=null;
+ var escAttr=v=>String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+ $('mbpxMain').innerHTML='<div class="mbpx-card"><div class="mbpx-hud"><h2>Custom pen workshop</h2><button class="mbpx-btn" id="mbpxStudioBack">Back</button></div><p class="mbpx-muted">Choose parts, place each part exactly where you want it on the assembly board, then press Join. Maximum parts: 3 barrels, 2 stationeries, 3 accessories and 2 metal parts.</p><div class="mbpx-actions" id="mbpxCatButtons">'+Object.keys(limits).map(k=>'<button class="mbpx-part" data-mbpx-cat="'+k+'">'+k.toUpperCase()+' · '+limits[k]+' MAX</button>').join('')+'</div><div id="mbpxParts" class="mbpx-grid" style="margin-top:12px"></div><div class="mbpx-status" id="mbpxCount"></div><div id="mbpxAssemblyStage" style="position:relative;width:100%;height:210px;max-width:520px;margin:12px auto;border:2px dashed #68b7a9;border-radius:14px;background:linear-gradient(135deg,#0c2834,#16443f);overflow:hidden;touch-action:none"><div style="position:absolute;inset:0;display:grid;place-items:center;color:#9cb9ca;pointer-events:none;font-size:.8rem">ASSEMBLY BOARD · drag parts to position</div></div><div class="mbpx-actions"><button class="mbpx-btn" id="mbpxRemovePart">Remove selected part</button><button class="mbpx-btn primary" id="mbpxJoinDesign">Join · Save custom pen</button></div><div id="mbpxStatus" class="mbpx-status"></div></div>';
+ $('mbpxStudioBack').onclick=mbpxPenSettings;
+ var count=cat=>design.items.filter(x=>x.category===cat).length;
+ var counts=()=>Object.keys(limits).map(k=>k+': '+count(k)+'/'+limits[k]).join(' · ');
+ var drawStage=()=>{
+  var stage=$('mbpxAssemblyStage');if(!stage)return;
+  stage.querySelectorAll('[data-mbpx-item]').forEach(e=>e.remove());
+  design.items.forEach((it,i)=>{
+   var el=document.createElement('button');el.type='button';el.dataset.mbpxItem=String(i);
+   el.textContent=it.name;el.title=it.category+' · drag to position';
+   el.style.cssText='position:absolute;left:'+Math.max(0,Math.min(88,Number(it.x)||0))+'%;top:'+Math.max(0,Math.min(78,Number(it.y)||0))+'%;transform:translate(-50%,-50%);max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:7px 9px;border:2px solid '+(active===i?'#fff':'#6bd9c8')+';border-radius:9px;background:'+it.color+';color:#071a20;font-size:.72rem;font-weight:900;touch-action:none;z-index:2';
+   el.onpointerdown=e=>{e.preventDefault();active=i;drag={index:i,pointerId:e.pointerId};el.setPointerCapture(e.pointerId);drawStage();};
+   el.onpointermove=e=>{if(!drag||drag.index!==i)return;var r=stage.getBoundingClientRect();it.x=Math.max(5,Math.min(95,(e.clientX-r.left)/r.width*100));it.y=Math.max(12,Math.min(88,(e.clientY-r.top)/r.height*100));el.style.left=it.x+'%';el.style.top=it.y+'%';};
+   el.onpointerup=()=>{drag=null;drawStage();};
+   stage.appendChild(el);
+  });
+  $('mbpxCount').textContent=counts()+' · Selected: '+(active===null?'none':design.items[active]?.name||'none');
+ };
+ var renderParts=cat=>{
+  $('mbpxParts').innerHTML=catalog[cat].map((p,i)=>{
+   var full=count(cat)>=limits[cat];
+   return '<button class="mbpx-part" data-mbpx-add="'+i+'" '+(full?'disabled':'')+'><b>'+esc(p.name)+'</b><br><small class="mbpx-muted">'+(full?'Limit reached':'Tap to add to board')+'</small><span style="display:inline-block;width:18px;height:18px;border-radius:5px;background:'+p.color+';vertical-align:middle;margin-left:7px"></span></button>';
+  }).join('');
+  $('mbpxParts').querySelectorAll('[data-mbpx-add]').forEach(b=>b.onclick=()=>{
+   if(count(cat)>=limits[cat]){mbpxStatus('Maximum '+limits[cat]+' '+cat+' parts reached.',true);return;}
+   var p=catalog[cat][Number(b.dataset.mbpxAdd)];
+   var n=count(cat),i=design.items.length;
+   design.items.push({category:cat,name:p.name,color:p.color,x:25+(i%4)*16,y:32+Math.floor(i/4)*20});
+   active=design.items.length-1;drawStage();renderParts(cat);
+  });
+ };
+ $('mbpxCatButtons').querySelectorAll('[data-mbpx-cat]').forEach(b=>b.onclick=()=>{
+  var cat=b.dataset.mbpxCat;
+  $('mbpxCatButtons').querySelectorAll('[data-mbpx-cat]').forEach(x=>x.classList.toggle('selected',x===b));
+  renderParts(cat);
+ });
+ $('mbpxRemovePart').onclick=()=>{
+  if(active===null||!design.items[active]){mbpxStatus('Select a placed part first.',true);return;}
+  design.items.splice(active,1);active=null;drawStage();
+ };
+ $('mbpxJoinDesign').onclick=async()=>{
+  try{
+   if(!design.items.length)throw new Error('Add at least one part before joining.');
+   for(var k of Object.keys(limits))if(count(k)>limits[k])throw new Error('Too many '+k+' parts. Maximum is '+limits[k]+'.');
+   var payload={version:2,items:design.items.map(x=>({category:x.category,name:x.name,color:x.color,x:Math.round(x.x*10)/10,y:Math.round(x.y*10)/10}))};
+   var r=await rpc('mbp_save_pen_settings',{p_selected_pen:'custom',p_custom_assembly:payload});
+   if(!r.saved)throw new Error('Could not save custom pen.');
+   var q=await sb.from('mbp_player_data').select('*').eq('user_id',profile.id).single();if(q.error)throw q.error;
+   mbpxPlayer=q.data;toast('Custom pen joined and saved with its part positions.','success');mbpxPenSettings();
+  }catch(e){mbpxStatus(e.message||String(e),true);}
+ };
+ $('mbpxCatButtons').querySelector('[data-mbpx-cat="barrels"]').click();
+ drawStage();
+}
 function mbpxProfile(){var p=mbpxSkin(mbpxPlayer?.selected_pen||'dhurandhar');$('mbpxMain').innerHTML='<div class="mbpx-card"><span class="mbpx-pill">PLAYER PROFILE</span><h2>'+esc(profile?.display_name||profile?.username||'Metxon Player')+'</h2><p class="mbpx-muted">@'+esc(profile?.username||'')+'</p><div class="mbpx-grid"><div class="mbpx-card"><small class="mbpx-muted">PT RATING</small><h2>'+(mbpxPlayer?.pt_rating||1000)+'</h2></div><div class="mbpx-card"><small class="mbpx-muted">MATCHES</small><h2>'+(mbpxPlayer?.matches_played||0)+'</h2></div><div class="mbpx-card"><small class="mbpx-muted">WINS</small><h2>'+(mbpxPlayer?.wins||0)+'</h2></div></div><div class="mbpx-card"><h3>Pen settings · Next match</h3><div class="mbpx-penview"><div class="mbpx-swatch" style="--c:'+p.color+';--a:'+p.accent+'"></div></div><b>'+esc(p.name)+'</b><div class="mbpx-actions" style="margin-top:12px"><button class="mbpx-btn primary" id="mbpxSettings">Choose pen for next match</button><button class="mbpx-btn" id="mbpxBuild">Customize appearance</button></div></div></div>';$('mbpxSettings').onclick=mbpxPenSettings;$('mbpxBuild').onclick=mbpxStudio;}
 function mbpxMPT(){if(mbpxPoll)clearInterval(mbpxPoll);mbpxPoll=setInterval(()=>{if(mbpxTab==='mpt')mbpxLoadMPT();},15000);$('mbpxMain').innerHTML='<div class="mbpx-card"><span class="mbpx-pill">METXON PENFIGHT TOURNAMENT</span><h2>MPT · Tournament centre</h2><p class="mbpx-muted">Create a playoff tournament or a scheduled Play Together event. Registered players check in at the chosen time.</p><div class="mbpx-actions"><button class="mbpx-btn primary" id="mbpxCreatePlayoffs">Create playoffs</button><button class="mbpx-btn" id="mbpxCreateTogether">Play Together</button><button class="mbpx-btn" id="mbpxRefreshMPT">Refresh events</button></div><div id="mbpxMPTList"></div></div>';$('mbpxCreatePlayoffs').onclick=()=>mbpxTournamentForm('playoffs');$('mbpxCreateTogether').onclick=()=>mbpxTournamentForm('play_together');$('mbpxRefreshMPT').onclick=mbpxLoadMPT;mbpxLoadMPT();}
 function mbpxTournamentForm(type){var together=type==='play_together';$('mbpxMPTList').innerHTML='<div class="mbpx-card"><h3>'+(together?'Schedule Play Together':'Create playoff tournament')+'</h3><label>Event name</label><input class="mbpx-input" id="mbpxEventName" placeholder="Tournament name">'+(together?'<label>Start date and time</label><input class="mbpx-input" id="mbpxEventTime" type="datetime-local">':'<div class="mbpx-status">2 teams: Final. 3 teams: Semifinal, Eliminator and Final. 4–8 teams: round-robin, Qualifier 1, Eliminator and Final.</div>')+'<div id="mbpxTeamsForm"></div><button class="mbpx-btn" id="mbpxAddTeam">＋ Add team</button><button class="mbpx-btn primary" id="mbpxSaveEvent">Create event</button><div id="mbpxStatus" class="mbpx-status"></div></div>';var count=2;var draw=()=>{$('mbpxTeamsForm').innerHTML=Array.from({length:count},(_,i)=>'<div class="mbpx-card"><b>Team '+(i+1)+'</b><label>Team name</label><input class="mbpx-input" id="mbpxTeamName'+i+'" placeholder="Team '+(i+1)+'"><label>Metxon usernames (comma-separated)</label><input class="mbpx-input" id="mbpxTeamUsers'+i+'" placeholder="username1, username2"></div>').join('');};$('mbpxAddTeam').onclick=()=>{count=Math.min(8,count+1);draw();};draw();$('mbpxSaveEvent').onclick=()=>mbpxCreateEvent(type,count);}
