@@ -628,32 +628,69 @@ $('createAppForm').addEventListener('submit',async e=>{
   }
  });
 }
+function mettinWithTimeout(task,label,ms){
+ return new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(new Error((label||'Request')+' timed out. Please check your connection and retry.')),ms||3000);
+  Promise.resolve(task).then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+ });
+}
 async function loadStore(){
  bindNebulaOfficialOpenDelegation();
- if(!profile)return;
- const q=await sb.from('metxon_app_installations').select('app_id').eq('user_id',profile.id);
- installed=new Set(q.error?[]:(q.data||[]).map(x=>x.app_id));
- const officialCards=APPS.map(a=>'<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: Mettin Corporation Pvt. Ltd.</div><div class="split"><div><span class="pill">'+(a.id==='met_develop'?'Development':a.id==='metpay'?'Payments':'Nebula app')+'</span><h3 style="margin-top:12px">'+esc(a.name)+'</h3><p>'+esc(a.desc)+'</p></div><div style="width:82px;min-width:82px;color:var(--green)">'+(['cule_in','cule_ai','nebula_ai'].includes(a.id)?mettinAssistantLogoSvg(a.id,false):esc(a.icon))+'</div></div><div class="price">'+(a.price===0?'Free':esc(moneyJp(a.price/100))+' <small>one-time</small>')+'</div>'+(installed.has(a.id)?'<span class="pill green">Installed</span> <button class="btn primary" type="button" data-open-official-app="'+a.id+'">Open app</button>':'<button class="btn primary" onclick="installApp(\''+a.id+'\')">'+(a.price===0?'Add app':'Install with MetPay')+'</button>')+'</div>').join('');
- const c=await sb.from('mettin_created_apps').select('id,creator_id,title,description,category,price_jp,source_language,needs_backend').eq('status','published').order('created_at',{ascending:false}).limit(60);
- if(c.error){$('storeGrid').innerHTML=officialCards+'<div class="empty">Community apps could not be loaded: '+esc(c.error.message)+'</div>';$('customStoreGrid').innerHTML='';return;}
- const creatorIds=[...new Set((c.data||[]).map(a=>a.creator_id).filter(Boolean))];
- const creatorRows=creatorIds.length?await sb.from('profiles').select('id,username,display_name').in('id',creatorIds):{data:[],error:null};
- const creatorNames=new Map((creatorRows.data||[]).map(p=>[p.id,p.display_name||p.username||'Metxon user']));
- const communityCards=(c.data||[]).map(a=>{
-  const key='mettin_custom:'+a.id;
-  const creator=a.creator_id===profile.id?'You':(creatorNames.get(a.creator_id)||'Metxon user');
-  const action=installed.has(key)?'<span class="pill green">Installed</span> <button class="btn primary" onclick="launchCustomApp(\''+a.id+'\')">Open app</button>':a.creator_id===profile.id?'<button class="btn primary" onclick="launchCustomApp(\''+a.id+'\')">Open app</button>':'<button class="btn primary" onclick="installCustomApp(\''+a.id+'\')">Install with MetPay</button>';
-  return '<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: '+esc(creator)+'</div><span class="pill">'+esc(a.category)+'</span><h3 style="margin-top:12px">'+esc(a.title)+'</h3>'+(a.needs_backend?'<span class="pill">Supabase backend</span>':'<span class="pill">Browser-only</span>')+'<p>'+esc(a.description)+'</p><p class="small">'+esc(String(a.source_language||'html').toUpperCase())+' app source</p><div class="price">'+esc(moneyJp(a.price_jp))+'</div>'+action+'</div>';
+ if(!profile){
+  $('storeGrid').innerHTML='<div class="empty">Sign in to load Nebula Store.</div>';
+  return;
+ }
+ const uid=profile.id;
+ const knownInstalled=installed instanceof Set?new Set(installed):new Set();
+ const officialCards=APPS.map(a=>'<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: Mettin Corporation Pvt. Ltd.</div><div class="split"><div><span class="pill">'+(a.id==='met_develop'?'Development':a.id==='metpay'?'Payments':'Nebula app')+'</span><h3 style="margin-top:12px">'+esc(a.name)+'</h3><p>'+esc(a.desc)+'</p></div><div style="width:82px;min-width:82px;color:var(--green)">'+(['cule_in','cule_ai','nebula_ai'].includes(a.id)?mettinAssistantLogoSvg(a.id,false):esc(a.icon))+'</div></div><div class="price">'+(a.price===0?'Free':esc(moneyJp(a.price/100))+' <small>one-time</small>')+'</div><button class="btn primary" type="button" data-fast-open="'+a.id+'">'+(knownInstalled.has(a.id)?'Open app':(a.price===0?'Add app':'Install with MetPay'))+'</button></div>').join('');
+ $('storeGrid').innerHTML=officialCards+'<div class="empty" id="nebulaCommunityStatus">Loading community apps…</div>';
+ $('storeGrid').querySelectorAll('[data-fast-open]').forEach(b=>{
+  const id=b.dataset.fastOpen;
+  b.addEventListener('click',()=>knownInstalled.has(id)?launchApp(id):installApp(id));
+ });
+ $('customStoreGrid').innerHTML='';
+ // Resolve the small status and catalogue queries concurrently, with a hard limit.
+ const [installResult,communityResult]=await Promise.allSettled([
+  mettinWithTimeout(sb.from('metxon_app_installations').select('app_id').eq('user_id',uid),'Installation list',3000),
+  mettinWithTimeout(sb.from('mettin_created_apps').select('id,creator_id,title,description,category,price_jp,source_language,needs_backend').eq('status','published').order('created_at',{ascending:false}).limit(60),'Community app catalogue',3500)
+ ]);
+ if(installResult.status==='fulfilled'&&!installResult.value.error){
+  installed=new Set((installResult.value.data||[]).map(x=>x.app_id));
+ }else{
+  installed=knownInstalled;
+  console.warn('Nebula installation status unavailable',installResult.status==='rejected'?installResult.reason:installResult.value.error);
+ }
+ // Update official app buttons without waiting for any community profile lookup.
+ $('storeGrid').querySelectorAll('[data-fast-open]').forEach(b=>{
+  const id=b.dataset.fastOpen,yes=installed.has(id);
+  b.textContent=yes?'Open app':(APPS.find(a=>a.id===id)?.price===0?'Add app':'Install with MetPay');
+  b.onclick=()=>yes?launchApp(id):installApp(id);
+ });
+ const communityBox=$('nebulaCommunityStatus');
+ if(communityResult.status!=='fulfilled'||communityResult.value.error){
+  if(communityBox)communityBox.textContent='Community apps are temporarily unavailable. Official apps remain ready to open.';
+  console.warn('Community app catalogue unavailable',communityResult.status==='rejected'?communityResult.reason:communityResult.value.error);
+  return;
+ }
+ const rows=communityResult.value.data||[];
+ const communityCards=rows.map(a=>{
+  const key='mettin_custom:'+a.id,own=a.creator_id===uid,yes=own||installed.has(key);
+  const action=yes?'<span class="pill green">Installed</span> <button class="btn primary" onclick="launchCustomApp(\''+a.id+'\')">Open app</button>':'<button class="btn primary" onclick="installCustomApp(\''+a.id+'\')">Install with MetPay</button>';
+  return '<div class="card"><div class="created-by" style="margin-bottom:8px">Created by: '+(own?'You':'Metxon user')+'</div><span class="pill">'+esc(a.category||'App')+'</span><h3 style="margin-top:12px">'+esc(a.title)+'</h3>'+(a.needs_backend?'<span class="pill">Supabase backend</span>':'<span class="pill">Browser-only</span>')+'<p>'+esc(a.description||'')+'</p><p class="small">'+esc(String(a.source_language||'html').toUpperCase())+' app source</p><div class="price">'+esc(moneyJp(a.price_jp))+'</div>'+action+'</div>';
  }).join('');
  $('storeGrid').innerHTML=officialCards+(communityCards||'<div class="empty">No community apps published yet. Create one in Develop.</div>');
+ $('storeGrid').querySelectorAll('[data-fast-open]').forEach(b=>{
+  const id=b.dataset.fastOpen,yes=installed.has(id);
+  b.textContent=yes?'Open app':(APPS.find(a=>a.id===id)?.price===0?'Add app':'Install with MetPay');
+  b.onclick=()=>yes?launchApp(id):installApp(id);
+ });
  $('customStoreGrid').innerHTML='';
-}
-async function installApp(id){const a=APPS.find(x=>x.id===id);if(!a)return;if(!confirm(a.price===0?'Add '+a.name+' to your apps?':'Install '+a.name+' for '+moneyJp(a.price/100)+'? Charged from the shared InstaPay balance.'))return;let p='';if(a.price>0){p=prompt('Enter your MetPay transaction password to confirm.');if(p===null)return;}try{const r=id==='mbp'?await rpc('mbp_install_app',{}):id==='met_bhc'?await rpc('metbhc_install_app',{p_metpay_password:p}):await rpc('mettin_install_nebula_app',{p_app_id:id,p_metpay_password:p});if(!r||!r.installed)throw new Error('Installation did not complete.');await getProfile();await refreshOverview();await loadStore();await loadMetPay();if(id==='metconnect'&&typeof initMetConnectBackground==='function')await initMetConnectBackground();toast(r.charged?'Installed '+a.name+' for '+moneyJp(r.price_jp)+'.':Number(r.price_jp)===0?'Added '+a.name+' to your apps.':'App already installed.','success');}catch(e){toast(e.message||'Installation failed.','error');}}
+}async function installApp(id){const a=APPS.find(x=>x.id===id);if(!a)return;if(!confirm(a.price===0?'Add '+a.name+' to your apps?':'Install '+a.name+' for '+moneyJp(a.price/100)+'? Charged from the shared InstaPay balance.'))return;let p='';if(a.price>0){p=prompt('Enter your MetPay transaction password to confirm.');if(p===null)return;}try{const r=id==='mbp'?await rpc('mbp_install_app',{}):id==='met_bhc'?await rpc('metbhc_install_app',{p_metpay_password:p}):await rpc('mettin_install_nebula_app',{p_app_id:id,p_metpay_password:p});if(!r||!r.installed)throw new Error('Installation did not complete.');await getProfile();await refreshOverview();await loadStore();await loadMetPay();if(id==='metconnect'&&typeof initMetConnectBackground==='function')await initMetConnectBackground();toast(r.charged?'Installed '+a.name+' for '+moneyJp(r.price_jp)+'.':Number(r.price_jp)===0?'Added '+a.name+' to your apps.':'App already installed.','success');}catch(e){toast(e.message||'Installation failed.','error');}}
 async function installCustomApp(id){const q=await sb.from('mettin_created_apps').select('title,price_jp,creator_id').eq('id',id).eq('status','published').single();if(q.error)return toast(q.error.message,'error');if(!confirm('Install '+q.data.title+' for '+moneyJp(q.data.price_jp)+'?'))return;let p='';if(Number(q.data.price_jp)>0){p=prompt('Enter your MetPay transaction password to confirm this Secure MetPay installation.');if(p===null)return;}try{const r=await rpc('mettin_install_created_app',{p_app_id:id,p_metpay_password:p});if(!r||!r.installed)throw new Error('Installation did not complete.');await loadStore();await getProfile();await refreshOverview();toast('App installed: '+r.app_name,'success');}catch(e){toast(e.message||'App install failed.','error');}}
 async function launchCustomApp(id){
  try{
   if(!profile)throw new Error('Sign in to Mettin before opening community apps.');
-  const app=await rpc('mettin_get_created_app',{p_app_id:id});
+  const app=await mettinWithTimeout(rpc('mettin_get_created_app',{p_app_id:id}),'App startup',8000);
   if(!app||!app.id||!app.app_code)throw new Error('App source was not returned. Install the app before opening it.');
   if(app.creator_id!==profile.id&&!installed.has('mettin_custom:'+id))throw new Error('Install this app first.');
   $('launchTitle').textContent=app.title;
