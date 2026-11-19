@@ -260,7 +260,43 @@ $('signupForm').addEventListener('submit',async e=>{e.preventDefault();try{await
 $('toggleSignup').addEventListener('click',()=>{displayGate(!$('signupForm').classList.contains('hidden'));gateMessage('');});
 $('lockBtn').addEventListener('click',signOut);
 async function signOut(){if(typeof window.metconnectShutdown==='function'){try{await window.metconnectShutdown();}catch(e){}}if(metxonHomeTimer){clearInterval(metxonHomeTimer);metxonHomeTimer=null;}await sb.auth.signOut();session=null;profile=null;$('shell').style.display='none';$('gate').style.display='grid';displayGate(false);gateMessage('You have signed out of Metxon.');}
-async function launchShell(){if(!(await ensureMetAccountConnect()))return;settings={currency_code:'JP'};const q=await sb.from('mettin_user_settings').select('currency_code').eq('user_id',profile.id).maybeSingle();if(!q.error&&q.data)settings.currency_code=q.data.currency_code||'JP';localStorage.setItem('metcartCurrency',settings.currency_code);$('gate').style.display='none';$('shell').style.display='block';$('userChip').textContent=profile.username||profile.display_name||'Metxon';$('currencyChoice').value=settings.currency_code;renderProfile();renderMetware();renderSmes();populateSmeSelect();await refreshOverview();await loadProjects();await loadStore();await loadCareTickets();await loadCarePlans();await loadMetPay();await processMettinDeepLink();if(installed.has('metconnect')&&typeof initMetConnectBackground==='function')await initMetConnectBackground();if(metxonHomeTimer)clearInterval(metxonHomeTimer);metxonHomeTimer=setInterval(()=>{if(profile)refreshMetxonHome();},60000);}
+async function launchShell(){
+ if(!(await ensureMetAccountConnect()))return;
+ settings={currency_code:'JP'};
+ try{
+  const q=await mettinWithTimeout(sb.from('mettin_user_settings').select('currency_code').eq('user_id',profile.id).maybeSingle(),'Account settings',1800);
+  if(!q.error&&q.data)settings.currency_code=q.data.currency_code||'JP';
+ }catch(e){console.warn('Using default JP currency while settings load:',e.message||e);}
+ try{localStorage.setItem('metcartCurrency',settings.currency_code);}catch(e){}
+ $('gate').style.display='none';$('shell').style.display='block';
+ $('userChip').textContent=profile.username||profile.display_name||'Metxon';
+ $('currencyChoice').value=settings.currency_code;
+ renderProfile();renderMetware();renderSmes();populateSmeSelect();
+
+ // Render Nebula Store before optional dashboard, project, care and payment requests.
+ loadStore().catch(error=>{
+  console.error('Nebula Store startup failed:',error);
+  const grid=$('storeGrid');
+  if(grid)grid.innerHTML='<div class="empty">Nebula Store could not load: '+esc(error&&error.message||'Unknown error')+' <button class="btn" type="button" onclick="loadStore()">Retry</button></div>';
+ });
+
+ // These sections are independent and must never hold up the app catalogue.
+ Promise.allSettled([
+  refreshOverview(),
+  loadProjects(),
+  loadCareTickets(),
+  loadCarePlans(),
+  loadMetPay(),
+  processMettinDeepLink()
+ ]).then(results=>{
+  results.forEach((result,index)=>{if(result.status==='rejected')console.warn('Background Mettin startup task '+index+' failed:',result.reason);});
+ });
+ if(installed.has('metconnect')&&typeof initMetConnectBackground==='function'){
+  Promise.resolve(initMetConnectBackground()).catch(e=>console.warn('MetConnect background startup:',e));
+ }
+ if(metxonHomeTimer)clearInterval(metxonHomeTimer);
+ metxonHomeTimer=setInterval(()=>{if(profile)refreshMetxonHome().catch(e=>console.warn('Metxon home refresh:',e));},60000);
+}
 async function guideMetPaySetup(){
  if(!profile)return;
  try{
