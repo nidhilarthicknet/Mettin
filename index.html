@@ -677,8 +677,12 @@ window.addEventListener('message',async event=>{const frame=$('launchContent')?.
  try{
   let result;
   if(operation==='list'){
-   result=await sb.from('mettin_projects').select('id,name,code,updated_at').eq('user_id',profile.id).order('updated_at',{ascending:false}).limit(50);
+   result=await sb.from('mettin_projects').select('id,name,updated_at').eq('user_id',profile.id).order('updated_at',{ascending:false}).limit(50);
    if(result.error)throw result.error;reply(true,result.data||[]);
+  }else if(operation==='get'){
+   if(!payload.id)throw new Error('Project ID is missing.');
+   result=await sb.from('mettin_projects').select('id,name,code,updated_at').eq('id',String(payload.id)).eq('user_id',profile.id).single();
+   if(result.error)throw result.error;reply(true,result.data);
   }else if(operation==='save'){
    const name=String(payload.name||'').trim(),code=String(payload.code||'');
    if(name.length<2||name.length>80)throw new Error('Project name must be 2–80 characters.');
