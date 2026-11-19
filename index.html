@@ -677,7 +677,7 @@ window.addEventListener('message',async event=>{const frame=$('launchContent')?.
  try{
   let result;
   if(operation==='list'){
-   result=await sb.from('mettin_projects').select('id,name,updated_at').eq('user_id',profile.id).order('updated_at',{ascending:false}).limit(50);
+   result=await sb.from('mettin_projects').select('id,name,code,updated_at').eq('user_id',profile.id).order('updated_at',{ascending:false}).limit(50);
    if(result.error)throw result.error;reply(true,result.data||[]);
   }else if(operation==='get'){
    if(!payload.id)throw new Error('Project ID is missing.');
